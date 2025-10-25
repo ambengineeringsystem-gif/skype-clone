@@ -371,6 +371,11 @@ document.querySelectorAll('.appIcon').forEach(btn=>{
 // default start page
 navigateTo('home', false);
 
+// Prevent the page from entering browser fullscreen programmatically or via F11
+document.addEventListener('fullscreenchange', ()=>{
+  try{ if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); }catch(e){ }
+});
+
 // in-call overlay controls
 const inCallMuteBtn = document.getElementById('inCallMute');
 const inCallHangupBtn = document.getElementById('inCallHangup');
@@ -612,6 +617,38 @@ function setIdle(show){
   const rv = document.getElementById('remoteVideo');
   if(rv) rv.style.display = show ? 'none' : 'block';
 }
+
+// Enter/exit a focused in-call view (CSS fullscreen overlay that hides other UI)
+function enterCallView(){
+  try{
+    const stage = document.getElementById('stage');
+    const left = document.querySelector('.leftPages');
+    const toolbar = document.querySelector('.toolbar');
+    const sysbar = document.querySelector('.sysBar');
+    if(left) left.style.display = 'none';
+    if(toolbar) toolbar.style.display = 'none';
+    if(sysbar) sysbar.style.display = 'none';
+    if(stage){ stage.style.display = 'block'; stage.classList && stage.classList.add('fullscreen'); }
+    // show only the remote video and controls
+    try{ remoteVideo.style.display = 'block'; }catch(e){}
+    showInCallControls(true);
+  }catch(e){ console.warn('enterCallView', e); }
+}
+
+function exitCallView(){
+  try{
+    const stage = document.getElementById('stage');
+    const left = document.querySelector('.leftPages');
+    const toolbar = document.querySelector('.toolbar');
+    const sysbar = document.querySelector('.sysBar');
+    if(left) left.style.display = 'block';
+    if(toolbar) toolbar.style.display = 'flex';
+    if(sysbar) sysbar.style.display = 'flex';
+    if(stage){ stage.classList && stage.classList.remove('fullscreen'); }
+    // leave remoteVideo visibility to setIdle
+    showInCallControls(false);
+  }catch(e){ console.warn('exitCallView', e); }
+}
 // start idle state
 setIdle(true);
 // if not logged in show only auth form; default to signed-out UI
@@ -784,6 +821,8 @@ signOutBtn.onclick = async ()=>{
     contactsMap = {};
     phonebookDiv.innerHTML = 'No contacts yet';
     // return to signed-out UI
+    // ensure any open camera/mic are stopped when signing out
+    try{ stopLocalMedia(); }catch(e){}
     setSignedInUI(false);
     // return to idle state
     setIdle(true);
@@ -869,6 +908,8 @@ rejectBtn.onclick = async ()=>{
   const sref = ref(db, 'sessions/' + incomingKey);
   await update(sref, { status: 'rejected' });
   closeModal();
+  // ensure we aren't holding the camera/mic (defensive)
+  try{ stopLocalMedia(); }catch(e){}
 };
 
 // Accept handlers remain direct. Show/hide buttons depending on offered media
@@ -988,6 +1029,7 @@ async function initiateCall(targetName, isVideo){
               if(saveCallBtn) saveCallBtn.style.display = 'inline-block';
             // clear answer timeout
             try{ if(answerTimeoutHandle) clearTimeout(answerTimeoutHandle); answerTimeoutHandle = null; }catch(e){}
+      try{ enterCallView(); }catch(e){}
         }catch(e){ console.error('apply answer', e); }
       }
       if(val.status === 'rejected'){
@@ -1056,15 +1098,8 @@ function makePeerConnection(sessionRef){
     setIdle(false);
     // show local preview now that call is connected
     try{ localPreview.style.display = 'block'; }catch(e){}
-    // attempt to enter fullscreen for immersive call view
-    try{
-      const stage = document.getElementById('stage');
-      if(stage && !document.fullscreenElement){
-        stage.requestFullscreen && stage.requestFullscreen().catch(()=>{});
-        // add class to stage for fullscreen styling (also used when not actually in fullscreen)
-        stage.classList && stage.classList.add('fullscreen');
-      }
-    }catch(e){ console.warn('request fullscreen failed', e); }
+    // switch UI into in-call focused view (CSS fullscreen overlay, not browser fullscreen)
+    try{ enterCallView(); }catch(e){ console.warn('enterCallView failed', e); }
   };
   pc.oniceconnectionstatechange = ()=>{
     console.log('ICE', pc.iceConnectionState);
@@ -1221,6 +1256,18 @@ function showLocalPreview(stream){
   // don't show preview yet — it will be made visible when remote video arrives (setIdle(false))
 }
 
+// Stop and release any local media devices (camera + microphone)
+function stopLocalMedia(){
+  try{
+    if(localStream){
+      for(const t of localStream.getTracks()){ try{ t.stop(); }catch(e){} }
+      localStream = null;
+    }
+  }catch(e){ console.warn('stopLocalMedia failed', e); }
+  try{ localPreviewVideo.srcObject = null; }catch(e){}
+  try{ localPreview.style.display = 'none'; }catch(e){}
+}
+
 endCallBtn.onclick = async ()=>{
   if(!currentSessionRef) return;
   try{
@@ -1247,8 +1294,10 @@ async function cleanupCall(){
   if(pc){ try{ pc.close(); }catch(e){} pc = null; }
   // remove candidate listener if present
   try{ if(sessionCandidateUnsub) sessionCandidateUnsub(); sessionCandidateUnsub = null; }catch(e){}
-  if(localStream){ for(const t of localStream.getTracks()) t.stop(); localStream = null; }
+  // ensure local camera and mic are stopped and released
+  stopLocalMedia();
   remoteVideo.srcObject = null;
+  try{ remoteVideo.style.display = 'none'; }catch(e){}
   localPreview.style.display = 'none';
   localPreviewVideo.srcObject = null;
   currentSessionRef = null;
@@ -1260,6 +1309,10 @@ async function cleanupCall(){
   // reset call state
   currentCallMeta = null; callStartTime = null; savedThisCall = false;
   // return to idle UI
+  // exit focused call view and return to idle UI
+  try{ exitCallView(); }catch(e){}
+  // if the browser is in fullscreen, explicitly exit it so both devices leave fullscreen mode
+  try{ if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); }catch(e){}
   setIdle(true);
 }
 
