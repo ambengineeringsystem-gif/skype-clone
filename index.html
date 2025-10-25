@@ -451,6 +451,7 @@ let pc = null;
 let localStream = null;
 let currentSessionRef = null; // ref to ongoing session in /sessions
 let sessionCandidateUnsub = null;
+let answerTimeoutHandle = null;
 
 const pcConfig = {iceServers:[{urls:['stun:stun.l.google.com:19302']}]};
 
@@ -900,8 +901,9 @@ async function acceptIncoming(isVideo){
     localStream = await navigator.mediaDevices.getUserMedia(isVideo ? {video:true,audio:true} : {audio:true});
     showLocalPreview(localStream);
 
-    // create peer connection and set remote offer
-    makePeerConnection();
+  // create peer connection and set remote offer
+  const sref = ref(db, 'sessions/' + incomingKey);
+  makePeerConnection(sref);
     for(const t of localStream.getTracks()) pc.addTrack(t, localStream);
 
     const offer = (typeof incomingSession.offer === 'string') ? JSON.parse(incomingSession.offer) : incomingSession.offer;
@@ -926,9 +928,10 @@ async function acceptIncoming(isVideo){
   await waitForIceGatheringComplete(pc);
 
   // write answer back to session (include gathered ICE in localDescription)
-  const sref = ref(db, 'sessions/' + incomingKey);
+  // reuse the sref we created earlier
+  // set currentSessionRef so onicecandidate can use it
+  currentSessionRef = sref;
   await update(sref, { answer: JSON.stringify(pc.localDescription), status: 'answered', answeredAt: Date.now() });
-    currentSessionRef = sref;
     callStatus.textContent = `In call with ${incomingSession.from}`;
     endCallBtn.style.display = 'inline-block';
     showInCallControls(true);
@@ -961,7 +964,9 @@ async function initiateCall(targetName, isVideo){
     // push session to DB
     const sessionsRef = ref(db, 'sessions');
     const newSessionRef = push(sessionsRef);
-    currentSessionRef = newSessionRef;
+  currentSessionRef = newSessionRef;
+  // ensure peer connection knows the session ref so onicecandidate can push candidates immediately
+  try{ if(pc) pc._sessionRef = newSessionRef; }catch(e){}
     await set(newSessionRef, { from: myName, to: targetName, media: isVideo? 'video':'audio', offer: JSON.stringify(pc.localDescription), status: 'pending', createdAt: Date.now() });
     callStatus.textContent = `Calling ${targetName}...`;
   // store call meta for outgoing call
@@ -981,6 +986,8 @@ async function initiateCall(targetName, isVideo){
               // mark call started
               callStartTime = Date.now(); savedThisCall = false;
               if(saveCallBtn) saveCallBtn.style.display = 'inline-block';
+            // clear answer timeout
+            try{ if(answerTimeoutHandle) clearTimeout(answerTimeoutHandle); answerTimeoutHandle = null; }catch(e){}
         }catch(e){ console.error('apply answer', e); }
       }
       if(val.status === 'rejected'){
@@ -1006,6 +1013,12 @@ async function initiateCall(targetName, isVideo){
         }catch(e){ console.warn('candidate handler error', e); }
       });
     }catch(e){ console.warn('candidate listen failed', e); }
+    // start a timeout for waiting for an answer
+    try{ if(answerTimeoutHandle) clearTimeout(answerTimeoutHandle); answerTimeoutHandle = setTimeout(()=>{
+      callStatus.textContent = 'No answer — call timed out';
+      cleanupCall();
+      alert('Call timed out — no answer. Please try again.');
+    }, 30000); }catch(e){}
   }catch(e){ console.error('initiate failed', e); alert('Call failed: ' + e); }
 }
 
@@ -1030,8 +1043,10 @@ async function initiateCallByNumber(number, isVideo){
 }
 
 // --- WebRTC helpers ---
-function makePeerConnection(){
+function makePeerConnection(sessionRef){
   pc = new RTCPeerConnection(pcConfig);
+  // attach the sessionRef so onicecandidate can push candidates to the correct session
+  try{ pc._sessionRef = sessionRef || null; }catch(e){}
   pc.ontrack = (ev)=>{
     if(ev.streams && ev.streams[0]) remoteVideo.srcObject = ev.streams[0];
     else {
@@ -1054,6 +1069,7 @@ function makePeerConnection(){
   pc.oniceconnectionstatechange = ()=>{
     console.log('ICE', pc.iceConnectionState);
     if(pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed'){
+      console.warn('ICE state failed/disconnected, cleaning up');
       cleanupCall();
     }
   };
@@ -1062,11 +1078,12 @@ function makePeerConnection(){
     try{
       if(!ev.candidate) return;
       console.log('Local ICE candidate', ev.candidate);
-      // push candidate to session candidates if we have a current session
+      // push candidate to session candidates if we have a sessionRef
       try{
-        const sessRef = currentSessionRef;
-        if(sessRef){
-          push(ref(db, sessRef.path.toString() + '/candidates'), { sender: getMyKey() || clientId, candidate: JSON.stringify(ev.candidate) });
+        const sessRef = pc._sessionRef || currentSessionRef;
+        if(sessRef && sessRef.key){
+          const candPath = 'sessions/' + sessRef.key + '/candidates';
+          push(ref(db, candPath), { sender: getMyKey() || clientId, candidate: JSON.stringify(ev.candidate) });
         }
       }catch(e){ console.warn('failed to push candidate', e); }
     }catch(e){ console.warn('onicecandidate error', e); }
