@@ -247,7 +247,7 @@
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
-import { getDatabase, ref, set, onValue, push, update, child, get, runTransaction, onDisconnect } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
+import { getDatabase, ref, set, onValue, push, update, child, get, runTransaction, onDisconnect, onChildAdded } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
 
 // Use the same Firebase config as your host page
 const firebaseConfig = {
@@ -450,6 +450,7 @@ let myRef = null; // ref to /users/<name>
 let pc = null;
 let localStream = null;
 let currentSessionRef = null; // ref to ongoing session in /sessions
+let sessionCandidateUnsub = null;
 
 const pcConfig = {iceServers:[{urls:['stun:stun.l.google.com:19302']}]};
 
@@ -904,13 +905,29 @@ async function acceptIncoming(isVideo){
     for(const t of localStream.getTracks()) pc.addTrack(t, localStream);
 
     const offer = (typeof incomingSession.offer === 'string') ? JSON.parse(incomingSession.offer) : incomingSession.offer;
+    // listen for remote ICE candidates (trickle) before/while applying remote offer
+    try{
+      const candRef = ref(db, 'sessions/' + incomingKey + '/candidates');
+      sessionCandidateUnsub = onChildAdded(candRef, async (csnap)=>{
+        try{
+          const obj = csnap.val();
+          if(!obj) return;
+          if(obj.sender === (getMyKey() || clientId)) return;
+          const cand = JSON.parse(obj.candidate);
+          if(pc) await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(e=>console.warn('addIceCandidate incoming failed', e));
+        }catch(e){ console.warn('candidate add (incoming) failed', e); }
+      });
+    }catch(e){ console.warn('incoming candidate listener failed', e); }
+
     await pc.setRemoteDescription(offer);
     const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
+  await pc.setLocalDescription(answer);
+  // wait for local ICE to be gathered so the answer contains candidates (non-trickle)
+  await waitForIceGatheringComplete(pc);
 
-    // write answer back to session
-    const sref = ref(db, 'sessions/' + incomingKey);
-    await update(sref, { answer: JSON.stringify(pc.localDescription), status: 'answered', answeredAt: Date.now() });
+  // write answer back to session (include gathered ICE in localDescription)
+  const sref = ref(db, 'sessions/' + incomingKey);
+  await update(sref, { answer: JSON.stringify(pc.localDescription), status: 'answered', answeredAt: Date.now() });
     currentSessionRef = sref;
     callStatus.textContent = `In call with ${incomingSession.from}`;
     endCallBtn.style.display = 'inline-block';
@@ -975,6 +992,20 @@ async function initiateCall(targetName, isVideo){
         cleanupCall();
       }
     });
+    // listen for remote ICE candidates (trickle)
+    try{
+      const candRef = ref(db, 'sessions/' + newSessionRef.key + '/candidates');
+      // listen for child added candidate entries
+      sessionCandidateUnsub = onChildAdded(candRef, async (csnap)=>{
+        try{
+          const obj = csnap.val();
+          if(!obj) return;
+          if(obj.sender === (getMyKey() || clientId)) return; // ignore our own
+          const cand = JSON.parse(obj.candidate);
+          if(pc){ await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(e=>console.warn('addIceCandidate failed', e)); }
+        }catch(e){ console.warn('candidate handler error', e); }
+      });
+    }catch(e){ console.warn('candidate listen failed', e); }
   }catch(e){ console.error('initiate failed', e); alert('Call failed: ' + e); }
 }
 
@@ -1025,6 +1056,20 @@ function makePeerConnection(){
     if(pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed'){
       cleanupCall();
     }
+  };
+  // send local ICE candidates to signaling (trickle ICE)
+  pc.onicecandidate = (ev)=>{
+    try{
+      if(!ev.candidate) return;
+      console.log('Local ICE candidate', ev.candidate);
+      // push candidate to session candidates if we have a current session
+      try{
+        const sessRef = currentSessionRef;
+        if(sessRef){
+          push(ref(db, sessRef.path.toString() + '/candidates'), { sender: getMyKey() || clientId, candidate: JSON.stringify(ev.candidate) });
+        }
+      }catch(e){ console.warn('failed to push candidate', e); }
+    }catch(e){ console.warn('onicecandidate error', e); }
   };
 }
 
@@ -1183,6 +1228,8 @@ async function cleanupCall(){
   }catch(e){ console.error('error saving call log on cleanup', e); }
 
   if(pc){ try{ pc.close(); }catch(e){} pc = null; }
+  // remove candidate listener if present
+  try{ if(sessionCandidateUnsub) sessionCandidateUnsub(); sessionCandidateUnsub = null; }catch(e){}
   if(localStream){ for(const t of localStream.getTracks()) t.stop(); localStream = null; }
   remoteVideo.srcObject = null;
   localPreview.style.display = 'none';
