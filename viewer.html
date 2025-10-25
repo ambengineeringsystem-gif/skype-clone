@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WebCam Viewer (phone) — create answer</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:12px}
+    video{width:100%;max-width:640px;background:#000}
+    textarea{width:100%;height:160px}
+    label{font-weight:600}
+    button{margin-top:6px}
+    .note{font-size:0.9em;color:#444}
+  </style>
+</head>
+<body>
+  <h2>WebCam Viewer (phone)</h2>
+  <p class="note">Open this page on your phone. Paste the Offer JSON from the host (laptop), click Create Answer, then copy the Answer JSON back to the host.</p>
+
+  <label>Paste Offer JSON from host (laptop):</label>
+  <textarea id="offerToViewer" placeholder="Paste offer JSON from laptop here"></textarea>
+  <div>
+    <button id="createAnswer">Create Answer</button>
+  </div>
+
+  <label>Answer JSON (copy back to host):</label>
+  <textarea id="answerText" placeholder="Answer JSON will appear here"></textarea>
+  <div>
+    <button id="copyAnswer">Copy Answer JSON</button>
+  </div>
+
+  <hr />
+  <label>Remote video (host's webcam):</label>
+  <video id="remoteVideo" autoplay playsinline></video>
+
+  <hr />
+  <h3>Incoming sessions</h3>
+  <div id="sessionsContainer" style="border:1px solid #ddd;padding:8px;border-radius:6px;background:#fafafa"></div>
+  <h4>Debug log</h4>
+  <pre id="debugLog" style="height:140px;overflow:auto;border:1px solid #eee;padding:8px;background:#fff"></pre>
+
+<script type="module">
+// Firebase-based automatic signaling listener + manual fallback
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+import { getDatabase, ref, onChildAdded, update } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD_5naeIoS-du5iwSlxhSCaxQnBVZ1Jn1Q",
+  authDomain: "data-2-2b770.firebaseapp.com",
+  databaseURL: "https://data-2-2b770-default-rtdb.firebaseio.com",
+  projectId: "data-2-2b770",
+  storageBucket: "data-2-2b770.firebasestorage.app",
+  messagingSenderId: "560682274163",
+  appId: "1:560682274163:web:1979df0d5ca13c2b784906",
+  measurementId: "G-KBR7B4PMM8"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const offerToViewer = document.getElementById('offerToViewer');
+const createAnswerBtn = document.getElementById('createAnswer');
+const answerText = document.getElementById('answerText');
+const copyAnswerBtn = document.getElementById('copyAnswer');
+const remoteVideo = document.getElementById('remoteVideo');
+const sessionsContainer = document.getElementById('sessionsContainer');
+const debugLogEl = document.getElementById('debugLog');
+
+function debugLog(msg){
+  const ts = new Date().toISOString();
+  debugLogEl.textContent = `[${ts}] ${msg}\n` + debugLogEl.textContent;
+}
+
+let pc = null;
+const pcConfig = {iceServers:[{urls:['stun:stun.l.google.com:19302']} ] };
+
+function makePeerConnection(){
+  pc = new RTCPeerConnection(pcConfig);
+  pc.ontrack = (ev) => {
+    if(ev.streams && ev.streams[0]){
+      remoteVideo.srcObject = ev.streams[0];
+    } else {
+      const ms = new MediaStream();
+      ev.track && ms.addTrack(ev.track);
+      remoteVideo.srcObject = ms;
+    }
+  };
+  pc.oniceconnectionstatechange = ()=> console.log('ice state', pc.iceConnectionState);
+}
+
+function waitForIceGatheringComplete(pc){
+  return new Promise((resolve)=>{
+    if(pc.iceGatheringState === 'complete'){
+      resolve();
+    } else {
+      function check(){
+        if(pc.iceGatheringState === 'complete'){
+          pc.removeEventListener('icegatheringstatechange', check);
+          resolve();
+        }
+      }
+      pc.addEventListener('icegatheringstatechange', check);
+      pc.addEventListener('icecandidate', (ev)=>{ if(!ev.candidate) resolve(); }, {once:true});
+    }
+  });
+}
+
+// Listen for incoming sessions in DB and prompt user to accept
+const sessionsRef = ref(db, 'sessions');
+onChildAdded(sessionsRef, async (snap)=>{
+  const key = snap.key;
+  const data = snap.val();
+  debugLog(`onChildAdded: ${key} status=${data && data.status}`);
+  if(!data) return;
+  // render session in sessionsContainer for visible accept/reject
+  const card = document.createElement('div');
+  card.style.border = '1px solid #ddd';
+  card.style.padding = '8px';
+  card.style.marginBottom = '8px';
+  const title = document.createElement('div');
+  title.textContent = `Session: ${key} — status: ${data.status || 'unknown'}`;
+  card.appendChild(title);
+
+  const info = document.createElement('details');
+  const pre = document.createElement('pre');
+  pre.style.whiteSpace = 'pre-wrap';
+  // display offer safely (may be a JSON string or object)
+  try{
+    const displayed = (typeof data.offer === 'string') ? JSON.parse(data.offer) : (data.offer || data);
+    pre.textContent = JSON.stringify(displayed, null, 2);
+  }catch(e){
+    pre.textContent = String(data.offer || data);
+  }
+  info.appendChild(pre);
+  card.appendChild(info);
+
+  const btnAccept = document.createElement('button');
+  btnAccept.textContent = 'Accept';
+  btnAccept.style.marginRight = '8px';
+  const btnReject = document.createElement('button');
+  btnReject.textContent = 'Reject';
+
+  card.appendChild(btnAccept);
+  card.appendChild(btnReject);
+
+  sessionsContainer.insertBefore(card, sessionsContainer.firstChild);
+
+  btnReject.onclick = async ()=>{
+    try{
+      await update(ref(db, `sessions/${key}`), { status: 'rejected', viewerAt: Date.now() });
+      title.textContent = `Session: ${key} — status: rejected`;
+      debugLog(`Rejected session ${key}`);
+    }catch(e){ debugLog('Failed to write reject: ' + e); }
+  };
+
+  btnAccept.onclick = async ()=>{
+    try{
+      debugLog(`Accepting session ${key}`);
+      makePeerConnection();
+      // normalize offer: it may be a JSON string or an object
+      let offerDesc = data.offer;
+      if(typeof offerDesc === 'string'){
+        try{ offerDesc = JSON.parse(offerDesc); }
+        catch(e){ debugLog('Failed to parse offer JSON string: ' + e); }
+      }
+      // final validation
+      if(!offerDesc || typeof offerDesc.sdp !== 'string' || typeof offerDesc.type !== 'string'){
+        throw new Error('Invalid offer format — missing type or sdp');
+      }
+      await pc.setRemoteDescription(offerDesc);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await waitForIceGatheringComplete(pc);
+      const localDesc = pc.localDescription;
+      // store answer as JSON string to be symmetric with host
+      await update(ref(db, `sessions/${key}`), { answer: JSON.stringify(localDesc), status: 'answered', viewerAt: Date.now() });
+      answerText.value = JSON.stringify(localDesc);
+      title.textContent = `Session: ${key} — status: answered`;
+      debugLog(`Answered session ${key}`);
+    }catch(e){
+      console.error('Failed to accept session', e);
+      debugLog('Failed to accept session: ' + e);
+      try{ await update(ref(db, `sessions/${key}`), { status: 'error' }); }catch(err){ debugLog('Failed to update session status: '+err); }
+    }
+  };
+});
+
+createAnswerBtn.onclick = async ()=>{
+  try{
+    const obj = JSON.parse(offerToViewer.value);
+    makePeerConnection();
+    await pc.setRemoteDescription(obj);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await waitForIceGatheringComplete(pc);
+    answerText.value = JSON.stringify(pc.localDescription);
+  }catch(e){
+    alert('Failed to create answer: ' + e);
+    console.error(e);
+  }
+};
+
+copyAnswerBtn.onclick = async ()=>{
+  try{ await navigator.clipboard.writeText(answerText.value); alert('Answer JSON copied to clipboard'); }
+  catch(e){ alert('Copy failed. Select and copy manually.'); }
+};
+
+</script>
+</body>
+</html>
