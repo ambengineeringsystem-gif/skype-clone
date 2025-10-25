@@ -2,198 +2,1203 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Viewer — Live Cam</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dialer — WebRTC P2P Calls</title>
   <style>
-    :root{--accent:#2b9cff;--danger:#e04b4b;--bg:#0b1220;--card:#0f1724}
-    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#fff;background:var(--bg)}
-    .app{position:fixed;inset:0;display:flex;flex-direction:column}
-    /* full-bleed video */
-    .video-wrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#000}
-    video{width:100%;height:100%;object-fit:cover;display:block}
+    :root{--bg:#081620;--card:#06121a;--muted:#9aa6b2;--accent:#06b6d4;--accent-2:#10b981}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#021226 0%, #03111a 100%);color:#e6eef6;-webkit-font-smoothing:antialiased}
+    .app{max-width:980px;margin:12px auto;padding:10px}
+    header{display:flex;align-items:center;gap:12px;justify-content:space-between}
+    h1{margin:0;font-size:1.05rem}
+    .subtitle{font-size:0.9rem;color:var(--muted)}
 
-    /* top bar */
-    .topbar{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:center;z-index:30}
-    .brand{display:flex;align-items:center;gap:10px}
-    .logo{width:42px;height:42px;border-radius:10px;background:linear-gradient(180deg,var(--accent),#176fc2);display:flex;align-items:center;justify-content:center;font-weight:800;box-shadow:0 6px 18px rgba(0,0,0,0.4)}
-    .title{font-size:16px;font-weight:700}
-    .status-pill{background:rgba(0,0,0,0.35);padding:8px 12px;border-radius:999px;font-size:13px;color:#d6e9ff}
+    /* Desktop two-column, mobile stacked */
+    .grid{display:grid;grid-template-columns:320px 1fr;gap:12px;margin-top:12px}
+    .panel{background:rgba(255,255,255,0.02);padding:12px;border-radius:12px}
+    label{font-size:0.85rem;color:var(--muted);display:block;margin-bottom:8px}
+    input[type=text]{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
 
-    /* idle overlay */
-    .idle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;text-align:center}
-    .idle .text{font-size:20px;font-weight:700;color:rgba(255,255,255,0.95);background:rgba(0,0,0,0.35);padding:10px 18px;border-radius:10px}
+    /* Dialer-style buttons */
+    .callBtn{width:54px;height:54px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;border:0;cursor:pointer;font-weight:700}
+    .callBtn.video{background:linear-gradient(180deg,var(--accent),#058b9a);color:#002b2f}
+    .callBtn.audio{background:linear-gradient(180deg,var(--accent-2),#0f9a6d);color:#062a18}
+    .callBtn.reject{background:#ef4444;color:white}
 
-    /* incoming call modal centered */
-    .modal-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:50}
-    .call-card{width:92%;max-width:420px;padding:18px;border-radius:14px;background:linear-gradient(180deg,#0f1724,#0b1220);border:1px solid rgba(255,255,255,0.04);box-shadow:0 18px 60px rgba(0,0,0,0.6);display:flex;flex-direction:column;gap:12px;align-items:center}
-    .ring-anim{width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(43,156,255,0.12),rgba(24,113,194,0.08));position:relative}
-    .ring-anim::after{content:'';position:absolute;inset:-10px;border-radius:50%;box-shadow:0 0 0 10px rgba(43,156,255,0.06);animation:pulse 1.6s infinite}
-    @keyframes pulse{0%{transform:scale(.98);opacity:0.9}50%{transform:scale(1.08);opacity:0.45}100%{transform:scale(.98);opacity:0.9}}
-    .caller-name{font-size:18px;font-weight:800}
-    .caller-sub{font-size:13px;color:#b6cfff}
-    .actions{display:flex;gap:14px;margin-top:6px;width:100%}
-    .action-btn{flex:1;padding:12px;border-radius:12px;border:none;font-weight:800}
-    .accept{background:linear-gradient(180deg,var(--accent),#176fc2);color:#fff}
-    .decline{background:rgba(255,255,255,0.04);color:var(--danger);border:1px solid rgba(255,255,255,0.04)}
+    .usersList{max-height:54vh;overflow:auto;margin-top:8px}
+    .userRow{display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:10px;margin-bottom:8px;background:linear-gradient(90deg,rgba(255,255,255,0.01),transparent)}
+    .userMeta{display:flex;gap:12px;align-items:center}
+    .avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#062b3a,#083047);display:flex;align-items:center;justify-content:center;font-weight:700}
+    .dot{width:12px;height:12px;border-radius:50%;box-shadow:0 0 0 4px rgba(0,0,0,0.35)}
+    .dot.online{background:#2dd4bf}
+    .dot.offline{background:#374151}
+    .small{font-size:0.85rem;color:var(--muted)}
 
-    /* bottom bar */
-    .bottombar{position:absolute;left:12px;right:12px;bottom:18px;display:flex;justify-content:center;z-index:30}
-    .controls{display:flex;gap:12px;background:rgba(0,0,0,0.35);padding:8px;border-radius:999px}
-    .small-btn{width:44px;height:44px;border-radius:44px;border:none;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;color:#fff}
+  .videoStage{position:relative;height:68vh;border-radius:12px;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center}
+    video{width:100%;height:100%;object-fit:cover;background:#000}
+  .localPreview{position:absolute;right:14px;bottom:14px;width:120px;height:90px;border-radius:10px;overflow:hidden;border:2px solid rgba(255,255,255,0.05);box-shadow:0 6px 20px rgba(0,0,0,0.6);background:#000}
 
-    /* connected toast */
-    .toast{position:absolute;left:50%;top:18px;transform:translateX(-50%);z-index:40;background:rgba(0,0,0,0.5);padding:8px 14px;border-radius:999px;font-weight:700}
+  /* in-call overlay controls (mute/hangup) */
+  .stageControls{position:absolute;left:50%;transform:translateX(-50%);bottom:22px;display:none;gap:18px;align-items:center;z-index:1001}
+  /* layout like phone: mute | hangup (center) | speaker */
+  .stageBtn{width:56px;height:56px;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,0.6)}
+  .stageBtn.hangup{background:#ef4444;color:white;width:76px;height:76px;font-size:22px}
+  .stageBtn.mute{background:rgba(0,0,0,0.45);color:white;border:1px solid rgba(255,255,255,0.06)}
+  .stageBtn.speaker{background:rgba(255,255,255,0.04);color:white;border:1px solid rgba(255,255,255,0.06)}
+  @media (max-width:640px){ .stageBtn{width:56px;height:56px;font-size:18px} }
 
-    @media(min-width:900px){
-      .idle .text{font-size:22px}
+  /* fullscreen / in-call styles */
+  .videoStage.fullscreen{position:fixed;left:0;top:0;right:0;bottom:0;z-index:9999}
+  .videoStage.fullscreen video{width:100%;height:100%;object-fit:cover}
+  .videoStage.fullscreen .localPreview{width:140px;height:110px;right:18px;bottom:18px;border-radius:12px}
+
+  /* incoming call modal buttons - improved visuals */
+  .callAction{padding:12px 16px;border-radius:12px;border:0;color:white;cursor:pointer;font-weight:700;font-size:1rem}
+  .callAction.acceptVid{background:linear-gradient(180deg,#10b981,#059669)}
+  .callAction.acceptAud{background:linear-gradient(180deg,#f59e0b,#d97706)}
+  .callAction.reject{background:#ef4444}
+  .callAction svg{vertical-align:middle;margin-right:8px}
+
+    .controls{display:flex;gap:10px;margin-top:10px;align-items:center}
+    .statusPill{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.02);font-size:0.9rem}
+
+    .modal{position:fixed;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.6))}
+    .card{background:var(--card);padding:18px;border-radius:14px;min-width:260px;text-align:center;box-shadow:0 10px 30px rgba(2,6,23,0.7)}
+    .card h2{margin:0 0 6px}
+    .muted{color:var(--muted)}
+    footer{margin-top:12px;color:var(--muted);font-size:0.82rem}
+
+    /* Mobile adjustments: stack and enlarge buttons */
+    @media (max-width:640px){
+      .app{padding:10px 12px}
+      .grid{grid-template-columns:1fr;}
+      .panel{padding:12px}
+      .videoStage{height:56vh}
+      .localPreview{width:108px;height:80px;right:10px;bottom:10px}
+      .callBtn{width:64px;height:64px}
+      .userRow{padding:12px}
+      .avatar{width:52px;height:52px}
     }
+
+    /* Tiny screens: emphasize dialer feeling */
+    @media (max-width:420px){
+      header{flex-direction:column;align-items:flex-start;gap:6px}
+      .subtitle{font-size:0.82rem}
+      .usersList{max-height:28vh}
+      .videoStage{height:48vh}
+      .callBtn{width:72px;height:72px}
+      .controls{justify-content:space-between}
+      .statusPill{flex:1;text-align:center}
+    }
+      /* toolbar + bottom nav */
+      .toolbar{background:transparent;padding:6px 4px}
+  .sysBack{background:rgba(255,255,255,0.02);border:0;border-radius:10px;padding:8px 12px;font-size:18px}
+  .sysHome{background:rgba(255,255,255,0.06);border:0;width:44px;height:44px;border-radius:50%;font-size:18px;display:flex;align-items:center;justify-content:center}
+  .sysBar{position:fixed;left:0;right:0;bottom:calc(12px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:24px;z-index:10001;padding-bottom:env(safe-area-inset-bottom)}
+      .appIcon{background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);border-radius:12px;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:0;cursor:pointer}
+  .bottomNav{display:none}
+  /* app grid */
+  .leftPages{height:calc(100vh - 160px);overflow:auto}
+  .appGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:12px;grid-auto-rows:1fr}
+  .appIcon{aspect-ratio:1/1;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);border-radius:12px;padding:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:0;cursor:pointer;font-size:18px}
+  .appIcon .small{margin-top:6px}
+  @media (max-width:640px){ .leftPages{height:calc(100vh - 120px)} }
   </style>
 </head>
 <body>
   <div class="app">
-    <div class="video-wrap">
-      <video id="remoteVideo" autoplay playsinline></video>
+    <!-- Top toolbar (phone-like) -->
+    <div class="toolbar" style="margin-top:10px;display:flex;align-items:center;gap:8px;justify-content:center">
+      <div id="pageTitle" style="font-weight:700">Contacts</div>
+    </div>
 
-      <div class="topbar">
-        <div class="brand"><div class="logo">VC</div><div class="title">Live Viewer</div></div>
-        <div class="status-pill" id="statusPill">Idle</div>
-      </div>
+  <div class="grid">
+        <!-- Pages: Home (app-icon grid), Contacts, Dialer, History, Profile -->
+        <div class="leftPages">
+          <section id="pageHome" class="page">
+            <div class="appGrid">
+              <button class="appIcon" data-target="contacts">📇<div class="small">Contacts</div></button>
+              <button class="appIcon" data-target="dial">📞<div class="small">Call</div></button>
+              <button class="appIcon" data-target="history">🕘<div class="small">History</div></button>
+              <button class="appIcon" data-target="profile">👤<div class="small">Profile</div></button>
+              <button class="appIcon" data-target="settings">⚙️<div class="small">Settings</div></button>
+              <!-- placeholders to fill 3x3 grid -->
+              <div></div><div></div><div></div>
+            </div>
+          </section>
 
-      <div class="idle" id="idleOverlay"><div class="text">No calls</div></div>
+          <section id="pageContacts" class="page" style="display:none;padding:6px">
+            <label class="small muted">My Phonebook (only these contacts are visible)</label>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <input id="contactNumber" placeholder="12345" style="width:110px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit" />
+              <input id="contactLabel" placeholder="Label (optional)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit" />
+              <button id="addContact">Add</button>
+            </div>
+            <div id="phonebook" style="margin-top:10px;max-height:240px;overflow:auto" class="small muted">No contacts yet</div>
+            <div id="profileInfo" class="small muted" style="margin-top:10px">Not signed in</div>
+          </section>
 
-      <!-- incoming modal (centered) -->
-      <div id="incomingModal" class="modal-overlay" style="display:none">
-        <div class="call-card" role="dialog" aria-label="Incoming">
-          <div class="ring-anim" id="ringAnim"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2b9cff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a8 8 0 0 0 0-6"></path><path d="M4.6 9a8 8 0 0 0 0 6"></path></svg></div>
-          <div class="caller-name" id="callerName">Incoming Call</div>
-          <div class="caller-sub" id="callerSubtitle">Someone wants to share their webcam</div>
-          <div class="actions"><button id="modalAccept" class="action-btn accept">Answer</button><button id="modalReject" class="action-btn decline">Decline</button></div>
+          <section id="pageDialer" class="page" style="display:none">
+            <label>Dial</label>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;margin-top:8px">
+              <input id="dialInput" placeholder="Dial number e.g. 12345" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit" />
+              <button id="dialVideo" class="callBtn video" title="Dial video">📹</button>
+              <button id="dialAudio" class="callBtn audio" title="Dial audio">🎧</button>
+            </div>
+            <div id="users" class="usersList"></div>
+          </section>
+
+          <section id="pageHistory" class="page" style="display:none">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <label>Call History</label>
+              <button id="clearHistory" style="background:#ef4444;color:white;border-radius:8px;padding:6px 10px;border:0">Clear History</button>
+            </div>
+            <div id="callLogs" style="margin-top:8px;max-height:320px;overflow:auto" class="small muted">No calls yet</div>
+          </section>
+
+          <section id="pageProfile" class="page" style="display:none">
+            <div id="authForm">
+              <label for="username">Username</label>
+              <input id="username" placeholder="Enter username" />
+              <label for="password" style="margin-top:8px">Password</label>
+              <input id="password" type="password" placeholder="Enter password" />
+              <div style="display:flex;gap:8px;margin-top:10px">
+                <button id="registerBtn">Register</button>
+                <button id="loginBtn">Login</button>
+                <button id="signOut" style="background:#ef4444;color:white;display:none">Logout</button>
+              </div>
+            </div>
+
+            <!-- profile editor shown when signed in -->
+            <div id="profileView" style="display:none;margin-top:8px">
+              <label class="small muted">Current profile</label>
+              <div id="profileDisplay" style="margin:8px 0;font-weight:700;color:var(--accent)">Not signed in</div>
+              <label class="small muted">Change display name</label>
+              <input id="profileNameInput" placeholder="Your display name" />
+              <label class="small muted" style="margin-top:8px">Phone number (5 digits)</label>
+              <input id="profileNumberInput" placeholder="e.g. 12345" />
+              <div style="display:flex;gap:8px;margin-top:10px">
+                <button id="saveProfileBtn" style="background:linear-gradient(180deg,#06b6d4,#028a9a);color:#002b2f;border-radius:8px;padding:8px 12px">Save changes</button>
+                <button id="cancelProfileBtn" style="background:transparent;border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 12px">Cancel</button>
+              </div>
+            </div>
+          </section>
+          
+          <section id="pageSettings" class="page" style="display:none;padding:12px">
+            <h3>Settings</h3>
+            <div class="small muted">Placeholder settings page. Add options here.</div>
+          </section>
         </div>
       </div>
 
-      <div class="toast" id="toast" style="display:none">Connected</div>
-
-      <div class="bottombar">
+      <div class="panel">
+        <div class="videoStage" id="stage">
+          <video id="remoteVideo" autoplay playsinline style="display:none"></video>
+          <!-- idle overlay removed per user request; remote video remains hidden until connected -->
+          <div class="localPreview" id="localPreview" style="display:none">
+            <video id="localPreviewVideo" autoplay muted playsinline></video>
+          </div>
+            <!-- in-call overlay controls (mute / speaker / hangup) -->
+            <div class="stageControls" id="stageControls" style="display:none">
+              <button id="inCallMute" class="stageBtn mute" title="Mute">🎤</button>
+              <button id="inCallHangup" class="stageBtn hangup" title="Hang up">📞</button>
+              <button id="inCallSpeaker" class="stageBtn speaker" title="Speaker">🔊</button>
+            </div>
+        </div>
         <div class="controls">
-          <button id="btnMute" class="small-btn" title="Toggle mute">🔈</button>
-          <button id="btnHang" class="small-btn" title="Hang up" style="display:none">✖</button>
+          <button id="endCall" style="background:#ef4444;display:none">Hang up</button>
+          <button id="saveCallBtn" style="background:linear-gradient(180deg,#06b6d4,#028a9a);color:#002b2f;display:none;margin-left:6px;border-radius:8px;padding:8px 12px">Save Call</button>
+          <div id="callStatus" class="small muted" style="align-self:center;display:none"></div>
         </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- system nav bar (bottom) -->
+  <div class="sysBar">
+    <button id="navBack" title="Back" class="sysBack">◀</button>
+    <button id="navHome" title="Home" class="sysHome">●</button>
+  </div>
+
+  <!-- Incoming modal -->
+  <div id="modal" class="modal" style="display:none">
+    <div class="card">
+      <h2 id="modalTitle">Incoming call</h2>
+      <div id="modalFrom" class="muted small">Caller</div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+        <button id="acceptVideo" class="callAction acceptVid" title="Accept video">
+          <!-- video camera icon -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M17 10.5V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.5l4 4v-11l-4 4z" fill="white"/></svg>
+          Video
+        </button>
+        <button id="acceptAudio" class="callAction acceptAud" title="Accept audio">
+          <!-- phone icon -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 3 5.18 2 2 0 0 1 5 3h3a2 2 0 0 1 2 1.72c.12 1.05.38 2.07.78 3.03a2 2 0 0 1-.45 2.11L9.91 11.09a16 16 0 0 0 6 6l1.22-1.22a2 2 0 0 1 2.11-.45c.96.4 1.98.66 3.03.78A2 2 0 0 1 22 16.92z" fill="white"/></svg>
+          Audio
+        </button>
+        <button id="reject" class="callAction reject" title="Reject">
+          <!-- phone hangup icon -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 16.5a16 16 0 0 1-9-9L21 16.5zM3 7.5a16 16 0 0 0 9 9L3 7.5z" fill="white"/></svg>
+          Reject
+        </button>
       </div>
     </div>
   </div>
 
-  <script type="module">
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
-  import { getDatabase, ref, onChildAdded, update } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+import { getDatabase, ref, set, onValue, push, update, child, get, runTransaction, onDisconnect } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyD_5naeIoS-du5iwSlxhSCaxQnBVZ1Jn1Q",
-    authDomain: "data-2-2b770.firebaseapp.com",
-    databaseURL: "https://data-2-2b770-default-rtdb.firebaseio.com",
-    projectId: "data-2-2b770",
-    storageBucket: "data-2-2b770.firebasestorage.app",
-    messagingSenderId: "560682274163",
-    appId: "1:560682274163:web:1979df0d5ca13c2b784906",
-    measurementId: "G-KBR7B4PMM8"
+// Use the same Firebase config as your host page
+const firebaseConfig = {
+  apiKey: "AIzaSyD_5naeIoS-du5iwSlxhSCaxQnBVZ1Jn1Q",
+  authDomain: "data-2-2b770.firebaseapp.com",
+  databaseURL: "https://data-2-2b770-default-rtdb.firebaseio.com",
+  projectId: "data-2-2b770",
+  storageBucket: "data-2-2b770.firebasestorage.app",
+  messagingSenderId: "560682274163",
+  appId: "1:560682274163:web:1979df0d5ca13c2b784906",
+  measurementId: "G-KBR7B4PMM8"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const nameInput = document.getElementById('username');
+const passwordInput = document.getElementById('password');
+const createBtn = document.getElementById('registerBtn');
+const signOutBtn = document.getElementById('signOut');
+const loginBtn = document.getElementById('loginBtn');
+const dialInput = document.getElementById('dialInput');
+const dialVideoBtn = document.getElementById('dialVideo');
+const dialAudioBtn = document.getElementById('dialAudio');
+const contactNumberInput = document.getElementById('contactNumber');
+const contactLabelInput = document.getElementById('contactLabel');
+const addContactBtn = document.getElementById('addContact');
+const phonebookDiv = document.getElementById('phonebook');
+const profileInfo = document.getElementById('profileInfo');
+// profile editor elements
+const profileView = document.getElementById('profileView');
+const profileDisplay = document.getElementById('profileDisplay');
+const profileNameInput = document.getElementById('profileNameInput');
+const profileNumberInput = document.getElementById('profileNumberInput');
+const saveProfileBtn = document.getElementById('saveProfileBtn');
+const cancelProfileBtn = document.getElementById('cancelProfileBtn');
+const usersDiv = document.getElementById('users');
+const modal = document.getElementById('modal');
+const modalTitle = document.getElementById('modalTitle');
+const modalFrom = document.getElementById('modalFrom');
+const acceptVideoBtn = document.getElementById('acceptVideo');
+const acceptAudioBtn = document.getElementById('acceptAudio');
+const rejectBtn = document.getElementById('reject');
+const remoteVideo = document.getElementById('remoteVideo');
+const localPreview = document.getElementById('localPreview');
+const localPreviewVideo = document.getElementById('localPreviewVideo');
+const endCallBtn = document.getElementById('endCall');
+const callStatus = document.getElementById('callStatus');
+
+// --- simple page navigation (phone-like) ---
+const navBackBtn = document.getElementById('navBack');
+const navHomeBtn = document.getElementById('navHome');
+const pageTitleEl = document.getElementById('pageTitle');
+const pages = {
+  home: document.getElementById('pageHome'),
+  contacts: document.getElementById('pageContacts'),
+  dial: document.getElementById('pageDialer'),
+  history: document.getElementById('pageHistory'),
+  profile: document.getElementById('pageProfile'),
+  settings: document.getElementById('pageSettings')
+};
+const tabHome = document.getElementById('tabHome');
+const tabDial = document.getElementById('tabDial');
+const tabHistory = document.getElementById('tabHistory');
+const tabProfile = document.getElementById('tabProfile');
+let navStack = [];
+
+function navigateTo(pageId, push=true){
+  // hide all pages
+  Object.values(pages).forEach(p=>{ if(p) p.style.display='none'; });
+  // show requested
+  const p = pages[pageId.replace('page','').replace('page','')] || pages[pageId];
+  // accept both 'home' or 'pageHome' ids
+  const key = pageId.replace(/^page/,'').toLowerCase();
+  const target = pages[key] || pages[pageId];
+  if(target) target.style.display = 'block';
+  // title
+  const titleMap = { home: 'Home', contacts: 'Contacts', dial: 'Call', history: 'Call History', profile: 'Profile', settings: 'Settings' };
+  pageTitleEl.textContent = titleMap[key] || 'Dialer';
+  // manage nav stack
+  if(push){ navStack.push(key); }
+  // update bottom tabs active state
+  [tabHome, tabDial, tabHistory, tabProfile].forEach(b=> b && b.classList && b.classList.remove('active'));
+  if(key === 'home' && tabHome) tabHome.classList.add('active');
+  if(key === 'dial' && tabDial) tabDial.classList.add('active');
+  if(key === 'history' && tabHistory) tabHistory.classList.add('active');
+  if(key === 'profile' && tabProfile) tabProfile.classList.add('active');
+  // if navigating to profile page, refresh profile editor view
+  try{ if(key === 'profile' && typeof renderProfileSection === 'function'){ renderProfileSection(); } }catch(e){console.warn(e);} 
+}
+
+// back behavior
+if(navBackBtn) navBackBtn.onclick = ()=>{
+  if(navStack.length > 1){
+    // drop current
+    navStack.pop();
+    const prev = navStack[navStack.length-1] || 'home';
+    navigateTo(prev, false);
+  } else navigateTo('home', false);
+};
+if(navHomeBtn) navHomeBtn.onclick = ()=>{ navStack = []; navigateTo('home', true); };
+
+// bottom tab handlers
+if(tabHome) tabHome.onclick = ()=> navigateTo('home');
+if(tabDial) tabDial.onclick = ()=> navigateTo('dial');
+if(tabHistory) tabHistory.onclick = ()=> navigateTo('history');
+if(tabProfile) tabProfile.onclick = ()=> navigateTo('profile');
+
+// app-icon clicks on Home
+document.querySelectorAll('.appIcon').forEach(btn=>{
+  btn.onclick = ()=>{
+    const t = btn.getAttribute('data-target');
+    if(t === 'contacts') navigateTo('contacts');
+    else if(t === 'dial') navigateTo('dial');
+    else if(t === 'history') navigateTo('history');
+    else if(t === 'profile') navigateTo('profile');
+    else if(t === 'settings') navigateTo('settings');
   };
+});
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+// default start page
+navigateTo('home', false);
 
-  const remoteVideo = document.getElementById('remoteVideo');
-  const idleOverlay = document.getElementById('idleOverlay');
-  const statusPill = document.getElementById('statusPill');
-  const toast = document.getElementById('toast');
+// in-call overlay controls
+const inCallMuteBtn = document.getElementById('inCallMute');
+const inCallHangupBtn = document.getElementById('inCallHangup');
+const inCallSpeakerBtn = document.getElementById('inCallSpeaker');
+const stageControls = document.getElementById('stageControls');
+let audioMuted = false;
+let speakerOn = false;
 
-  const incomingModal = document.getElementById('incomingModal');
-  const modalAccept = document.getElementById('modalAccept');
-  const modalReject = document.getElementById('modalReject');
-  const callerName = document.getElementById('callerName');
-  const callerSubtitle = document.getElementById('callerSubtitle');
-  const btnHang = document.getElementById('btnHang');
+// call logging UI & state
+const callLogsDiv = document.getElementById('callLogs');
+const saveCallBtn = document.getElementById('saveCallBtn');
+const clearHistoryBtn = document.getElementById('clearHistory');
+let callStartTime = null;
+let currentCallMeta = null; // { peer, media, direction }
+let savedThisCall = false;
+let lastCallSummary = null;
 
-  let pc = null;
-  const pcConfig = {iceServers:[{urls:['stun:stun.l.google.com:19302']} ] };
-  let ringtoneCtx = null, ringtoneInterval = null, modalActive = false;
+function showInCallControls(show){
+  try{ if(stageControls) stageControls.style.display = show ? 'flex' : 'none'; }catch(e){}
+}
 
-  function startRingtone(){
-    try{
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if(!Ctx) return;
-      ringtoneCtx = new Ctx();
-      function playBurst(){
-        const o = ringtoneCtx.createOscillator();
-        const g = ringtoneCtx.createGain();
-        o.type = 'sine'; o.frequency.value = 720;
-        g.gain.value = 0.0001; o.connect(g); g.connect(ringtoneCtx.destination);
-        const now = ringtoneCtx.currentTime; g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.08, now+0.02); g.gain.exponentialRampToValueAtTime(0.0001, now+0.6);
-        o.start(now); o.stop(now+0.65);
+// toggle mute/unmute local audio tracks
+function toggleMute(){
+  audioMuted = !audioMuted;
+  if(localStream){
+    for(const t of localStream.getAudioTracks()) t.enabled = !audioMuted;
+  }
+  if(inCallMuteBtn){ inCallMuteBtn.textContent = audioMuted ? '🔇' : '🎤'; inCallMuteBtn.title = audioMuted ? 'Unmute' : 'Mute'; }
+}
+
+if(inCallMuteBtn) inCallMuteBtn.onclick = ()=> toggleMute();
+if(inCallHangupBtn) inCallHangupBtn.onclick = async ()=>{
+  // reuse existing end call logic
+  try{ if(currentSessionRef) await update(currentSessionRef, { status: 'ended', endedAt: Date.now() }); }catch(e){ console.error(e); }
+  cleanupCall();
+};
+
+// toggle speaker: increase remote volume or use setSinkId if available (best-effort)
+async function toggleSpeaker(){
+  speakerOn = !speakerOn;
+  try{
+    if(remoteVideo){
+      // try setSinkId if supported and a deviceId is provided (best-effort)
+      if(typeof remoteVideo.setSinkId === 'function'){
+        // we don't have explicit device ids here; skip setSinkId attempt
       }
-      playBurst(); ringtoneInterval = setInterval(playBurst, 900); try{ if(navigator.vibrate) navigator.vibrate([200,120,200]); }catch(e){}
-    }catch(e){ console.warn('ring failed', e); }
+      // fallback: change playback volume to simulate speaker vs earpiece
+      remoteVideo.volume = speakerOn ? 1.0 : 0.6;
+    }
+    if(inCallSpeakerBtn) inCallSpeakerBtn.textContent = speakerOn ? '📣' : '🔊';
+    if(inCallSpeakerBtn) inCallSpeakerBtn.title = speakerOn ? 'Speaker on' : 'Speaker off';
+  }catch(e){ console.warn('toggleSpeaker', e); }
+}
+if(inCallSpeakerBtn) inCallSpeakerBtn.onclick = ()=> toggleSpeaker();
+
+// Save current call (quick save). If there's an active call, capture its data; otherwise save last call.
+async function quickSaveCall(){
+  if(currentCallMeta && (callStartTime || !savedThisCall)){
+    const startedAt = callStartTime || Date.now();
+    const endedAt = Date.now();
+    const duration = callStartTime ? (endedAt - callStartTime) : 0;
+    const entry = { peer: currentCallMeta.peer, direction: currentCallMeta.direction, media: currentCallMeta.media, startedAt, endedAt, duration };
+    await saveCallEntry(entry);
+    savedThisCall = true;
+    lastCallSummary = entry;
+    if(callLogsDiv) renderLogsList(await fetchLogsOnce());
+    alert('Call saved');
+    return;
   }
-  function stopRingtone(){ if(ringtoneInterval){ clearInterval(ringtoneInterval); ringtoneInterval=null; } if(ringtoneCtx){ try{ ringtoneCtx.close(); }catch(e){} ringtoneCtx=null; } try{ if(navigator.vibrate) navigator.vibrate(0); }catch(e){} }
+  if(lastCallSummary){ await saveCallEntry(lastCallSummary); alert('Last call saved'); if(callLogsDiv) renderLogsList(await fetchLogsOnce()); return; }
+  alert('No call to save');
+}
+if(saveCallBtn) saveCallBtn.onclick = ()=> quickSaveCall();
 
-  function makePeerConnection(){
-    pc = new RTCPeerConnection(pcConfig);
-    pc.ontrack = (e)=>{
-      if(e.streams && e.streams[0]){ remoteVideo.srcObject = e.streams[0]; idleOverlay.style.display='none'; statusPill.textContent='Connected'; btnHang.style.display='inline-flex'; showToast('Connected'); }
-      else { const ms = new MediaStream(); e.track && ms.addTrack(e.track); remoteVideo.srcObject = ms; idleOverlay.style.display='none'; }
-    };
-    pc.oniceconnectionstatechange = ()=>{
-      const s = pc.iceConnectionState; console.log('ice', s); statusPill.textContent = s;
-      if(s === 'disconnected' || s === 'failed' || s === 'closed'){ idleOverlay.style.display=''; statusPill.textContent='Idle'; try{ pc.close(); }catch(e){} pc=null; btnHang.style.display='none'; }
-    };
+let myName = null;
+let myRef = null; // ref to /users/<name>
+let pc = null;
+let localStream = null;
+let currentSessionRef = null; // ref to ongoing session in /sessions
+
+const pcConfig = {iceServers:[{urls:['stun:stun.l.google.com:19302']}]};
+
+// clientId allows reclaiming your name across reloads (stored in localStorage)
+let clientId = localStorage.getItem('dialerClientId') || null;
+if(!clientId){ clientId = crypto.randomUUID ? crypto.randomUUID() : ('cid-' + Math.random().toString(36).slice(2)); localStorage.setItem('dialerClientId', clientId); }
+
+// Prefill username if saved but do NOT auto-login (password required)
+const savedName = localStorage.getItem('dialerName');
+if(savedName){ nameInput.value = savedName; }
+
+// Helper to toggle auth form visibility
+function showAuthForm(visible){
+  const auth = document.getElementById('authForm');
+  if(!auth) return;
+  auth.style.display = visible ? 'block' : 'none';
+}
+// control signed-in UI: when not signed in, show only the auth form; when signed in show app UI
+function setSignedInUI(signedIn){
+  const toolbar = document.querySelector('.toolbar');
+  const sysBar = document.querySelector('.sysBar');
+  const stagePanel = document.getElementById('stage') ? document.getElementById('stage').closest('.panel') : null;
+  // pages map exists later; use pages if available
+  try{
+    if(!signedIn){
+      // hide video panel
+      if(stagePanel) stagePanel.style.display = 'none';
+      // hide toolbar and sysbar
+      if(toolbar) toolbar.style.display = 'none';
+      if(sysBar) sysBar.style.display = 'none';
+  // show only profile (auth) page if pages map present
+  if(typeof pages !== 'undefined') Object.keys(pages || {}).forEach(k=>{ if(pages[k]) pages[k].style.display = (k === 'profile') ? 'block' : 'none'; });
+  // ensure profile page is visible (if navigateTo exists)
+  if(typeof navigateTo === 'function') navigateTo('profile', false);
+      // show the auth form specifically
+      showAuthForm(true);
+    } else {
+      if(stagePanel) stagePanel.style.display = 'block';
+      if(toolbar) toolbar.style.display = 'flex';
+      if(sysBar) sysBar.style.display = 'flex';
+  showAuthForm(false);
+  if(typeof navigateTo === 'function') navigateTo('home', false);
+    }
+  }catch(e){ console.warn('setSignedInUI', e); }
+}
+
+// Render profile editor when profile page is visible
+async function renderProfileSection(){
+  try{
+    if(!profileView) return;
+    if(!myName){
+      // signed out - show auth form
+      showAuthForm(true);
+      profileView.style.display = 'none';
+      profileDisplay.textContent = 'Not signed in';
+      return;
+    }
+    // signed in - hide auth form and show profile view
+    showAuthForm(false);
+    profileView.style.display = 'block';
+    // fetch current user record
+    const key = getMyKey();
+    if(!key) return;
+    const snap = await get(ref(db, 'users/' + key));
+    if(!snap || !snap.exists()){
+      profileDisplay.textContent = `Signed in as ${myName}`;
+      profileNameInput.value = myName || '';
+      profileNumberInput.value = '';
+      return;
+    }
+    const u = snap.val();
+    profileDisplay.textContent = `Signed in as: ${u.name || myName} #${u.number || '----'}`;
+    profileNameInput.value = u.name || myName || '';
+    profileNumberInput.value = u.number || '';
+  }catch(e){ console.error('renderProfileSection', e); }
+}
+
+// Save profile changes: check uniqueness for name and number, then atomically update DB
+async function saveProfileChanges(){
+  try{
+    if(!myName) return alert('Sign in first');
+    const newNameRaw = (profileNameInput.value||'').trim();
+    const newNumber = (profileNumberInput.value||'').trim();
+    if(!newNameRaw) return alert('Enter a display name');
+    const currentKey = getMyKey();
+    if(!currentKey) return alert('Internal error: no user key');
+    const curSnap = await get(ref(db, 'users/' + currentKey));
+    if(!curSnap.exists()) return alert('User record not found');
+    const cur = curSnap.val();
+
+    // 1) Handle name change (which changes the DB key)
+    if(newNameRaw !== (cur.name || myName)){
+      const newKey = newNameRaw.replace(/[.#\$\[\]]/g,'_');
+      if(newKey === currentKey){
+        // unlikely, but normalize
+      } else {
+        const newUserRef = ref(db, 'users/' + newKey);
+        const exists = await get(newUserRef);
+        if(exists && exists.exists()) return alert('That username is already taken');
+        // create new user node with updated name (preserve other fields)
+        const newUserData = Object.assign({}, cur, { name: newNameRaw, lastSeen: Date.now(), clientId });
+        // ensure online flag remains true
+        newUserData.online = true;
+        await set(newUserRef, newUserData);
+        // update numbers mapping to point to new key if present
+        if(newUserData.number){
+          await set(ref(db, 'numbers/' + newUserData.number), newKey);
+        }
+        // remove old user node
+        await set(ref(db, 'users/' + currentKey), null);
+        // update local pointers
+        myName = newNameRaw; myRef = newUserRef; localStorage.setItem('dialerName', myName);
+        try{ await onDisconnect(myRef).update({ online: false, lastSeen: Date.now() }); }catch(e){}
+      }
+    } else {
+      // ensure name is saved/normalized
+      await update(ref(db, 'users/' + currentKey), { name: newNameRaw, lastSeen: Date.now() });
+    }
+
+    // 2) Handle number change
+    if(newNumber && String(newNumber) !== String(cur.number || '')){
+      if(!/^[0-9]{5}$/.test(newNumber)) return alert('Enter a valid 5-digit number');
+      const numRef = ref(db, 'numbers/' + newNumber);
+      // check existing owner
+      const numSnap = await get(numRef);
+      if(numSnap.exists() && numSnap.val() !== (getMyKey())) return alert('That number is already in use');
+      // attempt to reserve via transaction (safe against races)
+      const txn = await runTransaction(numRef, (curVal)=>{
+        if(curVal === null || curVal === getMyKey()) return getMyKey();
+        return; // abort
+      });
+      if(!txn.committed) return alert('Failed to reserve the number; it may be taken');
+      // clear old number mapping if different
+      if(cur.number && String(cur.number) !== String(newNumber)){
+        await set(ref(db, 'numbers/' + cur.number), null);
+      }
+      // update user's number
+      const writeRef = myRef || ref(db, 'users/' + getMyKey());
+      await update(writeRef, { number: newNumber, lastSeen: Date.now() });
+    }
+
+    // refresh UI and listeners
+    await renderProfileSection();
+    startListeningUsers(); startListeningContacts(); startListeningLogs();
+    alert('Profile updated');
+  }catch(e){ console.error('saveProfileChanges', e); alert('Failed to update profile: ' + e); }
+}
+
+if(saveProfileBtn) saveProfileBtn.onclick = ()=> saveProfileChanges();
+if(cancelProfileBtn) cancelProfileBtn.onclick = ()=> renderProfileSection();
+
+// Idle control: hide remote video until connected. No idle overlay is shown per user preference.
+function setIdle(show){
+  // when idle (show=true) hide the whole video stage so user doesn't see a black box
+  const stage = document.getElementById('stage');
+  if(stage) stage.style.display = show ? 'none' : 'block';
+  // also ensure remoteVideo is hidden when idle
+  const rv = document.getElementById('remoteVideo');
+  if(rv) rv.style.display = show ? 'none' : 'block';
+}
+// start idle state
+setIdle(true);
+// if not logged in show only auth form; default to signed-out UI
+setSignedInUI(false);
+
+// Dial by number handlers
+dialVideoBtn.onclick = ()=>{ const num = (dialInput.value||'').trim(); if(!num) return alert('Enter a 5-digit number'); initiateCallByNumber(num, true); };
+dialAudioBtn.onclick = ()=>{ const num = (dialInput.value||'').trim(); if(!num) return alert('Enter a 5-digit number'); initiateCallByNumber(num, false); };
+
+// Register & login handlers (username + password)
+createBtn.onclick = async ()=>{
+  const rawName = (nameInput.value||'').trim();
+  const pw = (passwordInput.value||'').trim();
+  if(!rawName || !pw) return alert('Provide username and password');
+  await registerUser(rawName, pw);
+};
+
+loginBtn.onclick = async ()=>{
+  const rawName = (nameInput.value||'').trim();
+  const pw = (passwordInput.value||'').trim();
+  if(!rawName || !pw) return alert('Provide username and password');
+  await loginWithPassword(rawName, pw);
+};
+
+// Helper: simple SHA-256 hash for password before storing (client-side)
+async function hashPassword(pw){
+  const enc = new TextEncoder();
+  const data = enc.encode(pw);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  // convert to hex
+  const bytes = new Uint8Array(hash);
+  return Array.from(bytes).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// Register: create user with unique 5-digit number and store passwordHash
+async function registerUser(rawName, password){
+  const key = rawName.replace(/[.#$\[\]]/g,'_');
+  const userRef = ref(db, 'users/' + key);
+  try{
+    const snap = await get(userRef);
+    if(snap.exists()) return alert('Username already taken');
+
+    // reserve number
+    let reservedNumber = null;
+    for(let tries=0; tries<10; ++tries){
+      const n = Math.floor(10000 + Math.random()*90000).toString();
+      const numRef = ref(db, 'numbers/' + n);
+      try{
+        const numTxn = await runTransaction(numRef, (cur)=>{ if(cur === null) return key; return; });
+        if(numTxn.committed){ reservedNumber = n; break; }
+      }catch(e){ console.warn('number txn failed', e); }
+    }
+    if(!reservedNumber) return alert('Failed to allocate number');
+
+    const pwHash = await hashPassword(password);
+    await set(userRef, { name: rawName, number: reservedNumber, passwordHash: pwHash, online: true, createdAt: Date.now(), lastSeen: Date.now(), clientId });
+  myName = rawName; myRef = userRef; localStorage.setItem('dialerName', myName);
+  profileInfo.textContent = `Signed in as: ${myName} #${reservedNumber}`;
+  createBtn.style.display = 'none'; signOutBtn.style.display = 'inline-block';
+      showAuthForm(false);
+      setSignedInUI(true);
+  await onDisconnect(myRef).update({ online: false, lastSeen: Date.now() });
+  startListeningUsers(); startListeningSessions(); startListeningContacts();
+  startListeningLogs();
+    return true;
+  }catch(e){ console.error('register failed', e); alert('Register failed: ' + e); }
+}
+
+// Login with username + password
+async function loginWithPassword(rawName, password){
+  const key = rawName.replace(/[.#$\[\]]/g,'_');
+  const userRef = ref(db, 'users/' + key);
+  try{
+    const snap = await get(userRef);
+    if(!snap.exists()) return alert('No user with that name');
+    const u = snap.val();
+    const pwHash = await hashPassword(password);
+    if(u.passwordHash !== pwHash) return alert('Invalid password');
+  myName = rawName; myRef = userRef; localStorage.setItem('dialerName', myName);
+  profileInfo.textContent = `Signed in as: ${myName} #${u.number}`;
+  createBtn.style.display = 'none'; signOutBtn.style.display = 'inline-block';
+      showAuthForm(false);
+      setSignedInUI(true);
+  await onDisconnect(myRef).update({ online: false, lastSeen: Date.now() });
+  await update(myRef, { online: true, lastSeen: Date.now() });
+  startListeningUsers(); startListeningSessions(); startListeningContacts();
+  startListeningLogs();
+    return true;
+  }catch(e){ console.error(e); alert('Login failed: ' + e); }
+}
+
+// --- Phonebook: per-user contacts (stored at /contacts/<userKey>) ---
+let contactsMap = {}; // number -> {number,label}
+// derive the sanitized DB key for the current user
+function getMyKey(){
+  try{
+    if(myName) return myName.replace(/[.#$\[\]]/g,'_');
+    // fallback: attempt to parse from ref if available
+    if(myRef && typeof myRef.toString === 'function'){
+      const s = String(myRef.toString());
+      // firebase ref string may look like '/users/<key>'
+      const parts = s.split('/');
+      return parts[parts.length-1] || null;
+    }
+  }catch(e){ /* ignore */ }
+  return null;
+}
+function startListeningContacts(){
+  const key = getMyKey();
+  if(!key) return;
+  const contactsRef = ref(db, 'contacts/' + key);
+  onValue(contactsRef, (snap)=>{
+    const val = snap.val() || {};
+    contactsMap = val;
+    renderPhonebook();
+    // re-render users filtered by phonebook
+    get(ref(db, 'users')).then(snapUsers=>{ renderUsers(Object.values(snapUsers.val() || {})); }).catch(()=>{});
+  });
+}
+
+function renderPhonebook(){
+  phonebookDiv.innerHTML = '';
+  const keys = Object.keys(contactsMap || {});
+  if(keys.length === 0){ phonebookDiv.textContent = 'No contacts yet'; return; }
+  for(const num of keys){
+    const info = contactsMap[num];
+    const row = document.createElement('div');
+    row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='6px 0';
+    const left = document.createElement('div'); left.innerHTML = `<strong>${info.label || info.number}</strong><div class="small muted">${info.number}</div>`;
+    const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px'; actions.style.alignItems='center';
+    // call buttons (video + audio)
+    const vid = document.createElement('button'); vid.textContent='📹'; vid.title = 'Video call'; vid.className = 'callBtn video'; vid.onclick = ()=> initiateCallByNumber(info.number, true);
+    const aud = document.createElement('button'); aud.textContent='🎧'; aud.title = 'Audio call'; aud.className = 'callBtn audio'; aud.onclick = ()=> initiateCallByNumber(info.number, false);
+    const rm = document.createElement('button'); rm.textContent='Remove'; rm.style.background='#ef4444'; rm.style.color='white'; rm.style.borderRadius='8px'; rm.onclick = ()=> removeContact(info.number);
+    actions.appendChild(vid); actions.appendChild(aud); actions.appendChild(rm);
+    row.appendChild(left); row.appendChild(actions); phonebookDiv.appendChild(row);
   }
+}
 
-  function waitForIceGatheringComplete(pc){
-    return new Promise((resolve)=>{
-      if(pc.iceGatheringState === 'complete') return resolve();
-      function check(){ if(pc.iceGatheringState === 'complete'){ pc.removeEventListener('icegatheringstatechange', check); resolve(); } }
-      pc.addEventListener('icegatheringstatechange', check);
-      pc.addEventListener('icecandidate', (ev)=>{ if(!ev.candidate) resolve(); }, {once:true});
-    });
+async function addContact(number, label){
+  if(!myName) return alert('Sign in first');
+  if(!/^[0-9]{5}$/.test(number)) return alert('Enter a valid 5-digit number');
+  const key = getMyKey();
+  if(!key) return alert('Sign in first');
+  const cRef = ref(db, 'contacts/' + key + '/' + number);
+  try{
+    await set(cRef, { number, label: label || '' });
+    return true;
+  }catch(e){ console.error('addContact failed', e); alert('Failed to add contact'); }
+}
+
+async function removeContact(number){
+  if(!myName) return; const key = getMyKey(); if(!key) return;
+  try{ await set(ref(db, 'contacts/' + key + '/' + number), null); }catch(e){ console.error(e); }
+}
+
+addContactBtn && (addContactBtn.onclick = ()=>{ const num = (contactNumberInput.value||'').trim(); const lbl = (contactLabelInput.value||'').trim(); addContact(num, lbl); contactNumberInput.value=''; contactLabelInput.value=''; });
+
+signOutBtn.onclick = async ()=>{
+  if(!myRef) return;
+  try{
+    await update(myRef, { online: false, lastSeen: Date.now() });
+    profileInfo.textContent = 'Signed out';
+    createBtn.style.display = 'inline-block';
+    signOutBtn.style.display = 'none';
+    localStorage.removeItem('dialerName');
+    // keep clientId so we can reclaim later
+    myName = null; myRef = null;
+    usersDiv.innerHTML = '';
+    contactsMap = {};
+    phonebookDiv.innerHTML = 'No contacts yet';
+    // return to signed-out UI
+    setSignedInUI(false);
+    // return to idle state
+    setIdle(true);
+  }catch(e){ console.error(e); }
+};
+
+// --- Users list ---
+function startListeningUsers(){
+  const usersRef = ref(db, 'users');
+  onValue(usersRef, (snap)=>{
+    const val = snap.val() || {};
+    renderUsers(Object.values(val));
+  });
+}
+
+function renderUsers(users){
+  usersDiv.innerHTML = '';
+  users.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+  for(const u of users){
+    // skip if no name
+    if(!u || !u.name) continue;
+    // if signed in, only show contacts that are in our phonebook (unless it's ourselves)
+    if(myName && myName !== u.name){
+      if(!contactsMap || !Object.prototype.hasOwnProperty.call(contactsMap, String(u.number))){
+        continue; // not in phonebook
+      }
+    }
+    const row = document.createElement('div');
+    row.className = 'userRow';
+    const left = document.createElement('div'); left.className='userMeta';
+    const dot = document.createElement('div'); dot.className='dot ' + (u.online? 'online':'offline');
+    const nm = document.createElement('div'); nm.innerHTML = `<div style="font-weight:600">${u.name} <span style="font-weight:600;color:var(--accent);font-size:0.9rem">#${u.number || '----'}</span></div><div class="small muted">${u.online? 'Online': 'Offline'}</div>`;
+    left.appendChild(dot); left.appendChild(nm);
+
+    const right = document.createElement('div');
+    if(myName && myName !== u.name && u.online){
+      const btnCallVid = document.createElement('button'); btnCallVid.textContent='📹'; btnCallVid.className='callBtn video';
+      const btnCallAud = document.createElement('button'); btnCallAud.textContent='🎧'; btnCallAud.className='callBtn audio';
+      btnCallVid.title = 'Call (Video)'; btnCallAud.title = 'Call (Audio)';
+      btnCallVid.onclick = ()=> initiateCall(u.name, true);
+      btnCallAud.onclick = ()=> initiateCall(u.name, false);
+      right.appendChild(btnCallVid); right.appendChild(btnCallAud);
+    } else {
+      right.innerHTML = '<div class="small muted">' + (u.name === myName ? 'You' : '') + '</div>';
+    }
+
+    row.appendChild(left); row.appendChild(right);
+    usersDiv.appendChild(row);
   }
+}
 
-  function showToast(msg){ toast.textContent = msg; toast.style.display='block'; setTimeout(()=>{ toast.style.display='none'; }, 2500); }
-
-  // listen for sessions
+// --- Sessions (signaling) ---
+function startListeningSessions(){
   const sessionsRef = ref(db, 'sessions');
-  onChildAdded(sessionsRef, async (snap)=>{
-    const key = snap.key; const data = snap.val(); if(!data) return;
-    if((data.status === 'pending' || !data.status) && !modalActive){
-      const label = data.label || data.callerName || `Request ${key.slice(0,6)}`;
-      callerName.textContent = label; callerSubtitle.textContent = 'Tap Answer to view';
-      // show modal immediately
-      modalActive = true; incomingModal.style.display='flex'; startRingtone(); statusPill.textContent='Incoming';
-      // attach accept/reject handlers once (they use session key closure)
-      const accept = async ()=>{
-        stopRingtone(); incomingModal.style.display='none';
-        try{
-          makePeerConnection();
-          let offerDesc = data.offer; if(typeof offerDesc === 'string'){ try{ offerDesc = JSON.parse(offerDesc); }catch(e){ console.error('offer parse', e); } }
-          if(!offerDesc || typeof offerDesc.sdp !== 'string') throw new Error('bad offer');
-          await pc.setRemoteDescription(offerDesc);
-          const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
-          await waitForIceGatheringComplete(pc);
-          const localDesc = pc.localDescription; await update(ref(db, `sessions/${key}`), { answer: JSON.stringify(localDesc), status: 'answered', viewerAt: Date.now() });
-          modalActive = false; statusPill.textContent='Connected'; btnHang.style.display='inline-flex'; showToast('Call accepted');
-        }catch(err){ console.error('accept failed', err); try{ await update(ref(db, `sessions/${key}`), { status: 'error' }); }catch(e){} modalActive=false; incomingModal.style.display='none'; stopRingtone(); }
-      };
-      const reject = async ()=>{
-        stopRingtone(); incomingModal.style.display='none'; try{ await update(ref(db, `sessions/${key}`), { status: 'rejected', viewerAt: Date.now() }); }catch(e){} modalActive=false; statusPill.textContent='Idle'; showToast('Call declined'); };
-
-      // temporary wire-up; remove previous listeners if any
-      modalAccept.onclick = accept; modalReject.onclick = reject;
+  onValue(sessionsRef, (snap)=>{
+    const sessions = snap.val() || {};
+    for(const key of Object.keys(sessions)){
+      const s = sessions[key];
+      if(!s || s.status !== 'pending') continue;
+      // only show incoming calls targeted to me
+      if(s.to && myName && s.to === myName){
+        showIncomingCall(key, s);
+      }
     }
   });
+}
 
-  // hang up button: just close peer locally
-  btnHang.onclick = ()=>{ try{ if(pc) pc.close(); }catch(e){} pc=null; idleOverlay.style.display=''; statusPill.textContent='Idle'; btnHang.style.display='none'; showToast('Call ended'); };
+let incomingKey = null;
+let incomingSession = null;
 
-  // ensure audio context can be created after user gesture
-  document.addEventListener('click', ()=>{ try{ if(window.AudioContext || window.webkitAudioContext){} }catch(e){} }, {once:true});
+function showIncomingCall(key, session){
+  if(incomingKey) return; // already showing
+  incomingKey = key; incomingSession = session;
+  modal.style.display = 'flex';
+  modalTitle.textContent = `${session.media === 'video' ? 'Video' : 'Audio'} call`;
+  modalFrom.textContent = `From: ${session.from || 'Unknown'}`;
+  // adjust which accept buttons are visible for clarity
+  try{ updateModalButtonsForSession(session); }catch(e){}
+}
 
-  </script>
+rejectBtn.onclick = async ()=>{
+  if(!incomingKey) return;
+  const sref = ref(db, 'sessions/' + incomingKey);
+  await update(sref, { status: 'rejected' });
+  closeModal();
+};
+
+// Accept handlers remain direct. Show/hide buttons depending on offered media
+acceptVideoBtn.onclick = ()=> acceptIncoming(true);
+acceptAudioBtn.onclick = ()=> acceptIncoming(false);
+
+// Modify modal display when showing incoming call so only matching accept option is visible
+function updateModalButtonsForSession(session){
+  try{
+    if(!session) return;
+    if(session.media === 'video'){
+      acceptVideoBtn.style.display = 'inline-block';
+      acceptAudioBtn.style.display = 'none';
+    } else if(session.media === 'audio'){
+      acceptVideoBtn.style.display = 'none';
+      acceptAudioBtn.style.display = 'inline-block';
+    } else {
+      acceptVideoBtn.style.display = 'inline-block';
+      acceptAudioBtn.style.display = 'inline-block';
+    }
+  }catch(e){ console.warn(e); }
+}
+
+async function acceptIncoming(isVideo){
+  if(!incomingKey || !incomingSession) return;
+  try{
+    // record call meta for incoming call
+    currentCallMeta = { peer: incomingSession.from, media: isVideo ? 'video' : 'audio', direction: 'incoming' };
+    // get local media according to selection
+    localStream = await navigator.mediaDevices.getUserMedia(isVideo ? {video:true,audio:true} : {audio:true});
+    showLocalPreview(localStream);
+
+    // create peer connection and set remote offer
+    makePeerConnection();
+    for(const t of localStream.getTracks()) pc.addTrack(t, localStream);
+
+    const offer = (typeof incomingSession.offer === 'string') ? JSON.parse(incomingSession.offer) : incomingSession.offer;
+    await pc.setRemoteDescription(offer);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    // write answer back to session
+    const sref = ref(db, 'sessions/' + incomingKey);
+    await update(sref, { answer: JSON.stringify(pc.localDescription), status: 'answered', answeredAt: Date.now() });
+    currentSessionRef = sref;
+    callStatus.textContent = `In call with ${incomingSession.from}`;
+    endCallBtn.style.display = 'inline-block';
+    showInCallControls(true);
+    // mark call started now (this is a reasonable proxy for connection start)
+    callStartTime = Date.now(); savedThisCall = false;
+    if(saveCallBtn) saveCallBtn.style.display = 'inline-block';
+  }catch(e){ console.error('accept failed', e); alert('Failed to accept call: ' + e); }
+  closeModal();
+}
+
+function closeModal(){
+  incomingKey = null; incomingSession = null; modal.style.display = 'none';
+  try{ if(acceptVideoBtn) acceptVideoBtn.style.display = 'inline-block'; if(acceptAudioBtn) acceptAudioBtn.style.display = 'inline-block'; }catch(e){}
+}
+
+// --- Initiate call ---
+async function initiateCall(targetName, isVideo){
+  if(!myName){ alert('Create a profile first'); return; }
+  try{
+    // get local media early so we can add tracks
+    localStream = await navigator.mediaDevices.getUserMedia(isVideo ? {video:true,audio:true} : {audio:true});
+    showLocalPreview(localStream);
+
+    makePeerConnection();
+    for(const t of localStream.getTracks()) pc.addTrack(t, localStream);
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitForIceGatheringComplete(pc);
+    // push session to DB
+    const sessionsRef = ref(db, 'sessions');
+    const newSessionRef = push(sessionsRef);
+    currentSessionRef = newSessionRef;
+    await set(newSessionRef, { from: myName, to: targetName, media: isVideo? 'video':'audio', offer: JSON.stringify(pc.localDescription), status: 'pending', createdAt: Date.now() });
+    callStatus.textContent = `Calling ${targetName}...`;
+  // store call meta for outgoing call
+  currentCallMeta = { peer: targetName, media: isVideo ? 'video' : 'audio', direction: 'outgoing' };
+
+    // listen for answer on this session
+    onValue(newSessionRef, async (snap)=>{
+      const val = snap.val();
+      if(!val) return;
+      if(val.answer && pc && !pc.remoteDescription){
+        try{
+          const answer = (typeof val.answer === 'string') ? JSON.parse(val.answer) : val.answer;
+          await pc.setRemoteDescription(answer);
+          callStatus.textContent = `In call with ${targetName}`;
+              endCallBtn.style.display = 'inline-block';
+              showInCallControls(true);
+              // mark call started
+              callStartTime = Date.now(); savedThisCall = false;
+              if(saveCallBtn) saveCallBtn.style.display = 'inline-block';
+        }catch(e){ console.error('apply answer', e); }
+      }
+      if(val.status === 'rejected'){
+        callStatus.textContent = `${targetName} rejected the call`;
+        cleanupCall();
+      }
+      if(val.status === 'ended'){
+        callStatus.textContent = `Call ended`;
+        cleanupCall();
+      }
+    });
+  }catch(e){ console.error('initiate failed', e); alert('Call failed: ' + e); }
+}
+
+// Resolve a 5-digit number to a target display name then call
+async function initiateCallByNumber(number, isVideo){
+  const n = (number||'').trim();
+  if(!/^[0-9]{5}$/.test(n)) return alert('Enter a valid 5-digit number');
+  try{
+    const numSnap = await get(ref(db, 'numbers/' + n));
+    if(!numSnap.exists()) return alert('Number not found');
+    const key = numSnap.val();
+    // fetch the user entry to read the display name
+    const userSnap = await get(ref(db, 'users/' + key));
+    if(!userSnap.exists()) return alert('User not found for that number');
+    const user = userSnap.val();
+    if(!user.online) return alert('User appears offline');
+    // user.name contains display name
+    await initiateCall(user.name, isVideo);
+    // ensure logs listener is active for current user
+    startListeningLogs();
+  }catch(e){ console.error('dial by number failed', e); alert('Dial failed: ' + e); }
+}
+
+// --- WebRTC helpers ---
+function makePeerConnection(){
+  pc = new RTCPeerConnection(pcConfig);
+  pc.ontrack = (ev)=>{
+    if(ev.streams && ev.streams[0]) remoteVideo.srcObject = ev.streams[0];
+    else {
+      const ms = new MediaStream(); ev.track && ms.addTrack(ev.track); remoteVideo.srcObject = ms;
+    }
+    // show remote video when we receive tracks
+    setIdle(false);
+    // show local preview now that call is connected
+    try{ localPreview.style.display = 'block'; }catch(e){}
+    // attempt to enter fullscreen for immersive call view
+    try{
+      const stage = document.getElementById('stage');
+      if(stage && !document.fullscreenElement){
+        stage.requestFullscreen && stage.requestFullscreen().catch(()=>{});
+        // add class to stage for fullscreen styling (also used when not actually in fullscreen)
+        stage.classList && stage.classList.add('fullscreen');
+      }
+    }catch(e){ console.warn('request fullscreen failed', e); }
+  };
+  pc.oniceconnectionstatechange = ()=>{
+    console.log('ICE', pc.iceConnectionState);
+    if(pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed'){
+      cleanupCall();
+    }
+  };
+}
+
+function waitForIceGatheringComplete(pc){
+  return new Promise((resolve)=>{
+    if(pc.iceGatheringState === 'complete') return resolve();
+    function check(){ if(pc.iceGatheringState === 'complete'){ pc.removeEventListener('icegatheringstatechange', check); resolve(); } }
+    pc.addEventListener('icegatheringstatechange', check);
+    pc.addEventListener('icecandidate', (ev)=>{ if(!ev.candidate) resolve(); }, {once:true});
+  });
+}
+
+// --- Call logging helpers ---
+async function saveCallEntry(entry){
+  try{
+    const myKey = getMyKey();
+    if(!myKey) return;
+    // try to resolve peer's number (if peer is a username stored in /users)
+    try{
+      if(entry.peer){
+        const peerKey = entry.peer.replace(/[.#\[\]]/g,'_');
+        const userSnap = await get(ref(db, 'users/' + peerKey));
+        if(userSnap && userSnap.exists()){
+          const u = userSnap.val();
+          entry.peerNumber = u.number || entry.peerNumber || null;
+          entry.peerName = u.name || entry.peer;
+        } else {
+          // still store peerName for convenience
+          entry.peerName = entry.peer;
+        }
+      }
+    }catch(e){ console.warn('peer resolution failed', e); }
+  // determine a stable session id so we don't create duplicates
+  let sessionId = null;
+  try{ sessionId = (currentSessionRef && currentSessionRef.key) || null; }catch(e){}
+  if(!sessionId){ sessionId = 'sess-' + (entry.startedAt || Date.now()) + '-' + Math.random().toString(36).slice(2,8); }
+  // include sessionId in the entry
+  entry.sessionId = sessionId;
+  // write under a stable key (set) to avoid duplicate pushes
+  await set(ref(db, 'logs/' + myKey + '/' + sessionId), entry);
+    // attempt to add to peer's logs (reverse direction)
+    if(entry.peer){
+      try{
+        const peerKey = entry.peer.replace(/[.#\[\]]/g,'_');
+        const peerEntry = Object.assign({}, entry, { peer: myName || 'unknown', peerNumber: null, peerName: myName || 'You', direction: entry.direction === 'outgoing' ? 'incoming' : 'outgoing', sessionId });
+        await set(ref(db, 'logs/' + peerKey + '/' + sessionId), peerEntry);
+      }catch(e){ console.warn('failed to write peer log', e); }
+    }
+  }catch(e){ console.error('saveCallEntry failed', e); }
+}
+
+// fetch logs once (for immediate refresh)
+async function fetchLogsOnce(){
+  const key = getMyKey(); if(!key) return {};
+  try{ const snap = await get(ref(db, 'logs/' + key)); return snap.val() || {}; }catch(e){ return {}; }
+}
+
+function renderLogsList(logs){
+  if(!callLogsDiv) return;
+  callLogsDiv.innerHTML = '';
+  const keys = Object.keys(logs || {});
+  if(keys.length === 0){ callLogsDiv.textContent = 'No calls yet'; return; }
+  // sort by startedAt desc
+  const items = keys.map(k=> logs[k]).sort((a,b)=> (b.startedAt||0) - (a.startedAt||0));
+  for(const it of items){
+    const row = document.createElement('div'); row.style.padding='8px 0'; row.style.borderBottom='1px solid rgba(255,255,255,0.02)';
+    const d = new Date(it.startedAt||Date.now());
+    const dur = it.duration ? Math.round((it.duration/1000)) + 's' : '-';
+    // build content
+    const title = document.createElement('div'); title.style.fontWeight='600';
+    const peerLabel = document.createElement('span'); peerLabel.textContent = it.peerName || it.peer || 'Unknown';
+    const meta = document.createElement('span'); meta.className='small muted'; meta.style.marginLeft='8px'; meta.textContent = `${it.media||''} • ${it.direction}`;
+    title.appendChild(peerLabel); title.appendChild(meta);
+    const sub = document.createElement('div'); sub.className='small muted'; sub.textContent = `${d.toLocaleString()} • ${dur}`;
+    row.appendChild(title); row.appendChild(sub);
+    // add action button: if this peer is not in our contacts, show Add button (requires peerNumber)
+    const actions = document.createElement('div'); actions.style.marginTop='6px';
+    if(it.peerNumber && (!contactsMap || !Object.prototype.hasOwnProperty.call(contactsMap, String(it.peerNumber)))){
+      const addBtn = document.createElement('button'); addBtn.textContent = 'Add contact'; addBtn.style.marginLeft='6px'; addBtn.style.borderRadius='8px'; addBtn.style.padding='6px 8px'; addBtn.onclick = async ()=>{ await addContact(it.peerNumber, it.peerName || it.peer); try{ renderPhonebook(); }catch(e){} try{ const logs = await fetchLogsOnce(); renderLogsList(logs); }catch(e){} };
+      actions.appendChild(addBtn);
+    } else if(!it.peerNumber){
+      // try to resolve by name and show Resolve button
+      const resBtn = document.createElement('button'); resBtn.textContent = 'Resolve & Add'; resBtn.style.marginLeft='6px'; resBtn.style.borderRadius='8px'; resBtn.style.padding='6px 8px';
+      resBtn.onclick = async ()=>{
+        if(!it.peer) return alert('No peer name available');
+        const key = it.peer.replace(/[.#\[\]]/g,'_');
+        const snap = await get(ref(db,'users/' + key));
+        if(snap && snap.exists()){
+          const u = snap.val();
+          await addContact(u.number, u.name);
+          // refresh phonebook and logs UI to show new contact and call buttons
+          try{ renderPhonebook(); }catch(e){}
+          try{ const logs = await fetchLogsOnce(); renderLogsList(logs); }catch(e){}
+          alert('Contact added');
+        }else{
+          alert('User not found in directory');
+        }
+      };
+      actions.appendChild(resBtn);
+    }
+    row.appendChild(actions);
+    callLogsDiv.appendChild(row);
+  }
+}
+
+function startListeningLogs(){
+  const key = getMyKey(); if(!key) return;
+  const logsRef = ref(db, 'logs/' + key);
+  onValue(logsRef, (snap)=>{ renderLogsList(snap.val() || {}); });
+}
+
+// clear call history for current user
+async function clearCallHistory(){
+  if(!confirm('Clear all call history for your account? This cannot be undone.')) return;
+  const key = getMyKey(); if(!key) return alert('Sign in first');
+  try{
+    await set(ref(db, 'logs/' + key), null);
+    // refresh UI
+    renderLogsList({});
+    alert('Call history cleared');
+  }catch(e){ console.error('clear history failed', e); alert('Failed to clear history'); }
+}
+if(clearHistoryBtn) clearHistoryBtn.onclick = ()=> clearCallHistory();
+
+function showLocalPreview(stream){
+  if(!stream) return;
+  // store the local stream and defer showing it until call is connected
+  localStream = stream;
+  localPreviewVideo.srcObject = stream;
+  // ensure audio tracks follow current mute state
+  try{ for(const t of stream.getAudioTracks()) t.enabled = !audioMuted; }catch(e){}
+  // don't show preview yet — it will be made visible when remote video arrives (setIdle(false))
+}
+
+endCallBtn.onclick = async ()=>{
+  if(!currentSessionRef) return;
+  try{
+    await update(currentSessionRef, { status: 'ended', endedAt: Date.now() });
+  }catch(e){ console.error(e); }
+  cleanupCall();
+};
+
+async function cleanupCall(){
+  try{
+    // save call log if we have metadata and it wasn't already saved
+    if(currentCallMeta && !savedThisCall){
+      const endedAt = Date.now();
+      const startedAt = callStartTime || endedAt;
+      const duration = callStartTime ? (endedAt - callStartTime) : 0;
+      const entry = { peer: currentCallMeta.peer, direction: currentCallMeta.direction, media: currentCallMeta.media, startedAt, endedAt, duration };
+      await saveCallEntry(entry);
+      savedThisCall = true; lastCallSummary = entry;
+      // refresh UI
+      if(callLogsDiv){ const logs = await fetchLogsOnce(); renderLogsList(logs); }
+    }
+  }catch(e){ console.error('error saving call log on cleanup', e); }
+
+  if(pc){ try{ pc.close(); }catch(e){} pc = null; }
+  if(localStream){ for(const t of localStream.getTracks()) t.stop(); localStream = null; }
+  remoteVideo.srcObject = null;
+  localPreview.style.display = 'none';
+  localPreviewVideo.srcObject = null;
+  currentSessionRef = null;
+  endCallBtn.style.display = 'none';
+  // hide in-call overlay controls
+  showInCallControls(false);
+  // hide quicksave
+  if(saveCallBtn) saveCallBtn.style.display = 'none';
+  // reset call state
+  currentCallMeta = null; callStartTime = null; savedThisCall = false;
+  // return to idle UI
+  setIdle(true);
+}
+
+</script>
 </body>
 </html>
