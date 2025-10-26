@@ -287,6 +287,17 @@
     </div>
   </div>
 
+  <!-- Settings modal -->
+  <div id="settingsModal" class="modal" style="display:none">
+    <div class="card">
+      <h2>Settings</h2>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+        <button onclick="installApp()" class="callAction" style="background:linear-gradient(180deg,#06b6d4,#0891b2)">Install App</button>
+        <button onclick="settingsModal.style.display='none'" class="callAction reject">Close</button>
+      </div>
+    </div>
+  </div>
+
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
 import { getDatabase, ref, set, onValue, push, update, child, get, runTransaction, onDisconnect } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
@@ -417,7 +428,7 @@ document.querySelectorAll('.appIcon').forEach(btn=>{
     else if(t === 'history') navigateTo('history');
     else if(t === 'profile') navigateTo('profile');
     else if(t === 'settings') {
-      busyModal.style.display = 'flex';
+      settingsModal.style.display = 'flex';
     }
     else if(t === 'messenger') {
       busyModal.style.display = 'flex';
@@ -812,7 +823,7 @@ function showIncomingCall(key, session){
   modalTitle.textContent = `${session.media === 'video' ? 'Video' : 'Audio'} call`;
   modalFrom.textContent = `From: ${session.from || 'Unknown'}`;
   if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification('Incoming ' + session.media + ' call from ' + session.from);
+    showNotification('Incoming ' + session.media + ' call from ' + session.from);
   }
   if (navigator.vibrate) {
     navigator.vibrate(200);
@@ -944,7 +955,7 @@ async function initiateCall(targetName, isVideo){
     dialingTitle.textContent = `Dialing ${targetName}`;
     dialingModal.style.display = 'flex';
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('Calling ' + targetName);
+      showNotification('Calling ' + targetName);
     }
     // store call meta for outgoing call
   currentCallMeta = { peer: targetName, media: isVideo ? 'video' : 'audio', direction: 'outgoing' };
@@ -1211,10 +1222,43 @@ async function cleanupCall(){
 </script>
 <script>
 // Register service worker for PWA
+let swRegistration = null;
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js')
-    .then(reg => console.log('Service Worker registered'))
+    .then(reg => {
+      swRegistration = reg;
+      console.log('Service Worker registered');
+    })
     .catch(err => console.log('Service Worker registration failed', err));
+}
+
+function showNotification(title, options = {}) {
+  if (swRegistration) {
+    swRegistration.showNotification(title, options);
+  } else if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, options);
+  }
+}
+
+function installApp() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult) => {
+      if (choiceResult.outcome === 'accepted') {
+        console.log('User accepted the install prompt');
+      }
+      deferredPrompt = null;
+    });
+  } else {
+    alert('App is already installed or install prompt not available.');
+  }
 }
 </script>
 </body>
