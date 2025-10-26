@@ -1,0 +1,9 @@
+{
+  "name": "Dialer WebRTC P2P Calls",
+  "short_name": "Dialer",
+  "description": "WebRTC P2P calling app",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#021226",
+  "theme_color": "#06b6d4"
+}

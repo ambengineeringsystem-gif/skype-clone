@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📞%3C/text%3E%3C/svg%3E" />
   <title>Dialer — WebRTC P2P Calls</title>
   <style>
     :root{--bg:#081620;--card:#06121a;--muted:#9aa6b2;--accent:#06b6d4;--accent-2:#10b981}
@@ -38,12 +40,10 @@
   .localPreview{position:absolute;right:14px;bottom:14px;width:120px;height:90px;border-radius:10px;overflow:hidden;border:2px solid rgba(255,255,255,0.05);box-shadow:0 6px 20px rgba(0,0,0,0.6);background:#000}
 
   /* in-call overlay controls (mute/hangup) */
-  .stageControls{position:absolute;left:50%;transform:translateX(-50%);bottom:22px;display:none;gap:18px;align-items:center;z-index:1001}
-  /* layout like phone: mute | hangup (center) | speaker */
-  .stageBtn{width:56px;height:56px;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,0.6)}
-  .stageBtn.hangup{background:#ef4444;color:white;width:76px;height:76px;font-size:22px}
+  .stageControls{position:absolute;left:50%;transform:translateX(-50%);bottom:22px;display:none;gap:14px;align-items:center;z-index:1001}
+  .stageBtn{width:60px;height:60px;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,0.6)}
+  .stageBtn.hangup{background:#ef4444;color:white}
   .stageBtn.mute{background:rgba(0,0,0,0.45);color:white;border:1px solid rgba(255,255,255,0.06)}
-  .stageBtn.speaker{background:rgba(255,255,255,0.04);color:white;border:1px solid rgba(255,255,255,0.06)}
   @media (max-width:640px){ .stageBtn{width:56px;height:56px;font-size:18px} }
 
   /* fullscreen / in-call styles */
@@ -105,6 +105,21 @@
   </style>
 </head>
 <body>
+  <div id="authContainer" style="display:block; position:fixed; left:0; top:0; width:100%; height:100%; background:linear-gradient(180deg,#021226 0%, #03111a 100%); display:flex; align-items:center; justify-content:center; z-index:1000">
+    <div id="authForm" style="background:var(--card); padding:20px; border-radius:14px; min-width:300px; text-align:center; box-shadow:0 10px 30px rgba(2,6,23,0.7)">
+      <h2 style="margin:0 0 16px; color:#e6eef6">Welcome</h2>
+      <label for="username">Username</label>
+      <input id="username" placeholder="Enter username" style="width:100%; padding:10px; margin:8px 0; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:#e6eef6" />
+      <label for="password" style="margin-top:8px">Password</label>
+      <input id="password" type="password" placeholder="Enter password" style="width:100%; padding:10px; margin:8px 0; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:#e6eef6" />
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button id="registerBtn" style="flex:1; padding:10px; border-radius:8px; border:0; background:linear-gradient(180deg,#06b6d4,#028a9a); color:#002b2f; font-weight:600">Register</button>
+        <button id="loginBtn" style="flex:1; padding:10px; border-radius:8px; border:0; background:linear-gradient(180deg,#10b981,#059669); color:#062a18; font-weight:600">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="mainApp" style="display:none">
   <div class="app">
     <!-- Top toolbar (phone-like) -->
     <div class="toolbar" style="margin-top:10px;display:flex;align-items:center;gap:8px;justify-content:center">
@@ -121,6 +136,7 @@
               <button class="appIcon" data-target="history">🕘<div class="small">History</div></button>
               <button class="appIcon" data-target="profile">👤<div class="small">Profile</div></button>
               <button class="appIcon" data-target="settings">⚙️<div class="small">Settings</div></button>
+              <button class="appIcon" data-target="messenger">💬<div class="small">Messenger</div></button>
               <!-- placeholders to fill 3x3 grid -->
               <div></div><div></div><div></div>
             </div>
@@ -156,31 +172,9 @@
           </section>
 
           <section id="pageProfile" class="page" style="display:none">
-            <div id="authForm">
-              <label for="username">Username</label>
-              <input id="username" placeholder="Enter username" />
-              <label for="password" style="margin-top:8px">Password</label>
-              <input id="password" type="password" placeholder="Enter password" />
-              <div style="display:flex;gap:8px;margin-top:10px">
-                <button id="registerBtn">Register</button>
-                <button id="loginBtn">Login</button>
-                <button id="signOut" style="background:#ef4444;color:white;display:none">Logout</button>
-              </div>
-            </div>
-
-            <!-- profile editor shown when signed in -->
-            <div id="profileView" style="display:none;margin-top:8px">
-              <label class="small muted">Current profile</label>
-              <div id="profileDisplay" style="margin:8px 0;font-weight:700;color:var(--accent)">Not signed in</div>
-              <label class="small muted">Change display name</label>
-              <input id="profileNameInput" placeholder="Your display name" />
-              <label class="small muted" style="margin-top:8px">Phone number (5 digits)</label>
-              <input id="profileNumberInput" placeholder="e.g. 12345" />
-              <div style="display:flex;gap:8px;margin-top:10px">
-                <button id="saveProfileBtn" style="background:linear-gradient(180deg,#06b6d4,#028a9a);color:#002b2f;border-radius:8px;padding:8px 12px">Save changes</button>
-                <button id="cancelProfileBtn" style="background:transparent;border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 12px">Cancel</button>
-              </div>
-            </div>
+            <h3>Profile</h3>
+            <div class="small muted">You are signed in as <span id="profileDisplay"></span></div>
+            <button id="signOut" style="margin-top:16px; background:#ef4444; color:white; border:0; padding:10px 16px; border-radius:8px">Logout</button>
           </section>
           
           <section id="pageSettings" class="page" style="display:none;padding:12px">
@@ -197,11 +191,10 @@
           <div class="localPreview" id="localPreview" style="display:none">
             <video id="localPreviewVideo" autoplay muted playsinline></video>
           </div>
-            <!-- in-call overlay controls (mute / speaker / hangup) -->
+            <!-- in-call overlay controls (mute / hangup) -->
             <div class="stageControls" id="stageControls" style="display:none">
               <button id="inCallMute" class="stageBtn mute" title="Mute">🎤</button>
               <button id="inCallHangup" class="stageBtn hangup" title="Hang up">📞</button>
-              <button id="inCallSpeaker" class="stageBtn speaker" title="Speaker">🔊</button>
             </div>
         </div>
         <div class="controls">
@@ -218,6 +211,7 @@
   <div class="sysBar">
     <button id="navBack" title="Back" class="sysBack">◀</button>
     <button id="navHome" title="Home" class="sysHome">●</button>
+  </div>
   </div>
 
   <!-- Incoming modal -->
@@ -245,9 +239,50 @@
     </div>
   </div>
 
+  <!-- Dialing modal -->
+  <div id="dialingModal" class="modal" style="display:none">
+    <div class="card">
+      <h2 id="dialingTitle">Dialing...</h2>
+      <div class="muted small">Please wait while we connect you</div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+        <button id="cancelDial" class="callAction reject" title="Cancel">
+          <!-- phone hangup icon -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 16.5a16 16 0 0 1-9-9L21 16.5zM3 7.5a16 16 0 0 0 9 9L3 7.5z" fill="white"/></svg>
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rejection notification modal -->
+  <div id="rejectionModal" class="modal" style="display:none">
+    <div class="card">
+      <h2>Call Declined</h2>
+      <div id="rejectionMessage" class="muted small">The call was declined</div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+        <button id="closeRejection" class="callAction reject" title="Close">
+          OK
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Busy message modal -->
+  <div id="busyModal" class="modal" style="display:none">
+    <div class="card">
+      <h2>Hold On!</h2>
+      <div class="muted small">WAIT IM STILL FUCKING BUSY</div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+        <button id="closeBusy" class="callAction reject" title="Close">
+          OK
+        </button>
+      </div>
+    </div>
+  </div>
+
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
-import { getDatabase, ref, set, onValue, push, update, child, get, runTransaction, onDisconnect, onChildAdded } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
+import { getDatabase, ref, set, onValue, push, update, child, get, runTransaction, onDisconnect } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
 
 // Use the same Firebase config as your host page
 const firebaseConfig = {
@@ -277,13 +312,6 @@ const contactLabelInput = document.getElementById('contactLabel');
 const addContactBtn = document.getElementById('addContact');
 const phonebookDiv = document.getElementById('phonebook');
 const profileInfo = document.getElementById('profileInfo');
-// profile editor elements
-const profileView = document.getElementById('profileView');
-const profileDisplay = document.getElementById('profileDisplay');
-const profileNameInput = document.getElementById('profileNameInput');
-const profileNumberInput = document.getElementById('profileNumberInput');
-const saveProfileBtn = document.getElementById('saveProfileBtn');
-const cancelProfileBtn = document.getElementById('cancelProfileBtn');
 const usersDiv = document.getElementById('users');
 const modal = document.getElementById('modal');
 const modalTitle = document.getElementById('modalTitle');
@@ -296,6 +324,25 @@ const localPreview = document.getElementById('localPreview');
 const localPreviewVideo = document.getElementById('localPreviewVideo');
 const endCallBtn = document.getElementById('endCall');
 const callStatus = document.getElementById('callStatus');
+
+// Dialing modal elements
+const dialingModal = document.getElementById('dialingModal');
+const dialingTitle = document.getElementById('dialingTitle');
+const cancelDialBtn = document.getElementById('cancelDial');
+
+// Rejection modal elements
+const rejectionModal = document.getElementById('rejectionModal');
+const rejectionMessage = document.getElementById('rejectionMessage');
+const closeRejectionBtn = document.getElementById('closeRejection');
+
+// Busy modal elements
+const busyModal = document.getElementById('busyModal');
+const closeBusyBtn = document.getElementById('closeBusy');
+
+// Auth and main app elements
+const authContainer = document.getElementById('authContainer');
+const mainApp = document.getElementById('mainApp');
+const profileDisplay = document.getElementById('profileDisplay');
 
 // --- simple page navigation (phone-like) ---
 const navBackBtn = document.getElementById('navBack');
@@ -335,8 +382,6 @@ function navigateTo(pageId, push=true){
   if(key === 'dial' && tabDial) tabDial.classList.add('active');
   if(key === 'history' && tabHistory) tabHistory.classList.add('active');
   if(key === 'profile' && tabProfile) tabProfile.classList.add('active');
-  // if navigating to profile page, refresh profile editor view
-  try{ if(key === 'profile' && typeof renderProfileSection === 'function'){ renderProfileSection(); } }catch(e){console.warn(e);} 
 }
 
 // back behavior
@@ -364,25 +409,23 @@ document.querySelectorAll('.appIcon').forEach(btn=>{
     else if(t === 'dial') navigateTo('dial');
     else if(t === 'history') navigateTo('history');
     else if(t === 'profile') navigateTo('profile');
-    else if(t === 'settings') navigateTo('settings');
+    else if(t === 'settings') {
+      busyModal.style.display = 'flex';
+    }
+    else if(t === 'messenger') {
+      busyModal.style.display = 'flex';
+    }
   };
 });
 
 // default start page
 navigateTo('home', false);
 
-// Prevent the page from entering browser fullscreen programmatically or via F11
-document.addEventListener('fullscreenchange', ()=>{
-  try{ if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); }catch(e){ }
-});
-
 // in-call overlay controls
 const inCallMuteBtn = document.getElementById('inCallMute');
 const inCallHangupBtn = document.getElementById('inCallHangup');
-const inCallSpeakerBtn = document.getElementById('inCallSpeaker');
 const stageControls = document.getElementById('stageControls');
 let audioMuted = false;
-let speakerOn = false;
 
 // call logging UI & state
 const callLogsDiv = document.getElementById('callLogs');
@@ -413,24 +456,6 @@ if(inCallHangupBtn) inCallHangupBtn.onclick = async ()=>{
   cleanupCall();
 };
 
-// toggle speaker: increase remote volume or use setSinkId if available (best-effort)
-async function toggleSpeaker(){
-  speakerOn = !speakerOn;
-  try{
-    if(remoteVideo){
-      // try setSinkId if supported and a deviceId is provided (best-effort)
-      if(typeof remoteVideo.setSinkId === 'function'){
-        // we don't have explicit device ids here; skip setSinkId attempt
-      }
-      // fallback: change playback volume to simulate speaker vs earpiece
-      remoteVideo.volume = speakerOn ? 1.0 : 0.6;
-    }
-    if(inCallSpeakerBtn) inCallSpeakerBtn.textContent = speakerOn ? '📣' : '🔊';
-    if(inCallSpeakerBtn) inCallSpeakerBtn.title = speakerOn ? 'Speaker on' : 'Speaker off';
-  }catch(e){ console.warn('toggleSpeaker', e); }
-}
-if(inCallSpeakerBtn) inCallSpeakerBtn.onclick = ()=> toggleSpeaker();
-
 // Save current call (quick save). If there's an active call, capture its data; otherwise save last call.
 async function quickSaveCall(){
   if(currentCallMeta && (callStartTime || !savedThisCall)){
@@ -455,8 +480,6 @@ let myRef = null; // ref to /users/<name>
 let pc = null;
 let localStream = null;
 let currentSessionRef = null; // ref to ongoing session in /sessions
-let sessionCandidateUnsub = null;
-let answerTimeoutHandle = null;
 
 const pcConfig = {iceServers:[{urls:['stun:stun.l.google.com:19302']}]};
 
@@ -470,143 +493,12 @@ if(savedName){ nameInput.value = savedName; }
 
 // Helper to toggle auth form visibility
 function showAuthForm(visible){
-  const auth = document.getElementById('authForm');
-  if(!auth) return;
-  auth.style.display = visible ? 'block' : 'none';
-}
-// control signed-in UI: when not signed in, show only the auth form; when signed in show app UI
-function setSignedInUI(signedIn){
-  const toolbar = document.querySelector('.toolbar');
-  const sysBar = document.querySelector('.sysBar');
-  const stagePanel = document.getElementById('stage') ? document.getElementById('stage').closest('.panel') : null;
-  // pages map exists later; use pages if available
-  try{
-    if(!signedIn){
-      // hide video panel
-      if(stagePanel) stagePanel.style.display = 'none';
-      // hide toolbar and sysbar
-      if(toolbar) toolbar.style.display = 'none';
-      if(sysBar) sysBar.style.display = 'none';
-  // show only profile (auth) page if pages map present
-  if(typeof pages !== 'undefined') Object.keys(pages || {}).forEach(k=>{ if(pages[k]) pages[k].style.display = (k === 'profile') ? 'block' : 'none'; });
-  // ensure profile page is visible (if navigateTo exists)
-  if(typeof navigateTo === 'function') navigateTo('profile', false);
-      // show the auth form specifically
-      showAuthForm(true);
-    } else {
-      if(stagePanel) stagePanel.style.display = 'block';
-      if(toolbar) toolbar.style.display = 'flex';
-      if(sysBar) sysBar.style.display = 'flex';
-  showAuthForm(false);
-  if(typeof navigateTo === 'function') navigateTo('home', false);
-    }
-  }catch(e){ console.warn('setSignedInUI', e); }
+  if(authContainer) authContainer.style.display = visible ? 'flex' : 'none';
 }
 
-// Render profile editor when profile page is visible
-async function renderProfileSection(){
-  try{
-    if(!profileView) return;
-    if(!myName){
-      // signed out - show auth form
-      showAuthForm(true);
-      profileView.style.display = 'none';
-      profileDisplay.textContent = 'Not signed in';
-      return;
-    }
-    // signed in - hide auth form and show profile view
-    showAuthForm(false);
-    profileView.style.display = 'block';
-    // fetch current user record
-    const key = getMyKey();
-    if(!key) return;
-    const snap = await get(ref(db, 'users/' + key));
-    if(!snap || !snap.exists()){
-      profileDisplay.textContent = `Signed in as ${myName}`;
-      profileNameInput.value = myName || '';
-      profileNumberInput.value = '';
-      return;
-    }
-    const u = snap.val();
-    profileDisplay.textContent = `Signed in as: ${u.name || myName} #${u.number || '----'}`;
-    profileNameInput.value = u.name || myName || '';
-    profileNumberInput.value = u.number || '';
-  }catch(e){ console.error('renderProfileSection', e); }
+function showMainApp(visible){
+  if(mainApp) mainApp.style.display = visible ? 'block' : 'none';
 }
-
-// Save profile changes: check uniqueness for name and number, then atomically update DB
-async function saveProfileChanges(){
-  try{
-    if(!myName) return alert('Sign in first');
-    const newNameRaw = (profileNameInput.value||'').trim();
-    const newNumber = (profileNumberInput.value||'').trim();
-    if(!newNameRaw) return alert('Enter a display name');
-    const currentKey = getMyKey();
-    if(!currentKey) return alert('Internal error: no user key');
-    const curSnap = await get(ref(db, 'users/' + currentKey));
-    if(!curSnap.exists()) return alert('User record not found');
-    const cur = curSnap.val();
-
-    // 1) Handle name change (which changes the DB key)
-    if(newNameRaw !== (cur.name || myName)){
-      const newKey = newNameRaw.replace(/[.#\$\[\]]/g,'_');
-      if(newKey === currentKey){
-        // unlikely, but normalize
-      } else {
-        const newUserRef = ref(db, 'users/' + newKey);
-        const exists = await get(newUserRef);
-        if(exists && exists.exists()) return alert('That username is already taken');
-        // create new user node with updated name (preserve other fields)
-        const newUserData = Object.assign({}, cur, { name: newNameRaw, lastSeen: Date.now(), clientId });
-        // ensure online flag remains true
-        newUserData.online = true;
-        await set(newUserRef, newUserData);
-        // update numbers mapping to point to new key if present
-        if(newUserData.number){
-          await set(ref(db, 'numbers/' + newUserData.number), newKey);
-        }
-        // remove old user node
-        await set(ref(db, 'users/' + currentKey), null);
-        // update local pointers
-        myName = newNameRaw; myRef = newUserRef; localStorage.setItem('dialerName', myName);
-        try{ await onDisconnect(myRef).update({ online: false, lastSeen: Date.now() }); }catch(e){}
-      }
-    } else {
-      // ensure name is saved/normalized
-      await update(ref(db, 'users/' + currentKey), { name: newNameRaw, lastSeen: Date.now() });
-    }
-
-    // 2) Handle number change
-    if(newNumber && String(newNumber) !== String(cur.number || '')){
-      if(!/^[0-9]{5}$/.test(newNumber)) return alert('Enter a valid 5-digit number');
-      const numRef = ref(db, 'numbers/' + newNumber);
-      // check existing owner
-      const numSnap = await get(numRef);
-      if(numSnap.exists() && numSnap.val() !== (getMyKey())) return alert('That number is already in use');
-      // attempt to reserve via transaction (safe against races)
-      const txn = await runTransaction(numRef, (curVal)=>{
-        if(curVal === null || curVal === getMyKey()) return getMyKey();
-        return; // abort
-      });
-      if(!txn.committed) return alert('Failed to reserve the number; it may be taken');
-      // clear old number mapping if different
-      if(cur.number && String(cur.number) !== String(newNumber)){
-        await set(ref(db, 'numbers/' + cur.number), null);
-      }
-      // update user's number
-      const writeRef = myRef || ref(db, 'users/' + getMyKey());
-      await update(writeRef, { number: newNumber, lastSeen: Date.now() });
-    }
-
-    // refresh UI and listeners
-    await renderProfileSection();
-    startListeningUsers(); startListeningContacts(); startListeningLogs();
-    alert('Profile updated');
-  }catch(e){ console.error('saveProfileChanges', e); alert('Failed to update profile: ' + e); }
-}
-
-if(saveProfileBtn) saveProfileBtn.onclick = ()=> saveProfileChanges();
-if(cancelProfileBtn) cancelProfileBtn.onclick = ()=> renderProfileSection();
 
 // Idle control: hide remote video until connected. No idle overlay is shown per user preference.
 function setIdle(show){
@@ -617,42 +509,10 @@ function setIdle(show){
   const rv = document.getElementById('remoteVideo');
   if(rv) rv.style.display = show ? 'none' : 'block';
 }
-
-// Enter/exit a focused in-call view (CSS fullscreen overlay that hides other UI)
-function enterCallView(){
-  try{
-    const stage = document.getElementById('stage');
-    const left = document.querySelector('.leftPages');
-    const toolbar = document.querySelector('.toolbar');
-    const sysbar = document.querySelector('.sysBar');
-    if(left) left.style.display = 'none';
-    if(toolbar) toolbar.style.display = 'none';
-    if(sysbar) sysbar.style.display = 'none';
-    if(stage){ stage.style.display = 'block'; stage.classList && stage.classList.add('fullscreen'); }
-    // show only the remote video and controls
-    try{ remoteVideo.style.display = 'block'; }catch(e){}
-    showInCallControls(true);
-  }catch(e){ console.warn('enterCallView', e); }
-}
-
-function exitCallView(){
-  try{
-    const stage = document.getElementById('stage');
-    const left = document.querySelector('.leftPages');
-    const toolbar = document.querySelector('.toolbar');
-    const sysbar = document.querySelector('.sysBar');
-    if(left) left.style.display = 'block';
-    if(toolbar) toolbar.style.display = 'flex';
-    if(sysbar) sysbar.style.display = 'flex';
-    if(stage){ stage.classList && stage.classList.remove('fullscreen'); }
-    // leave remoteVideo visibility to setIdle
-    showInCallControls(false);
-  }catch(e){ console.warn('exitCallView', e); }
-}
 // start idle state
 setIdle(true);
-// if not logged in show only auth form; default to signed-out UI
-setSignedInUI(false);
+// show auth form by default
+showAuthForm(true);
 
 // Dial by number handlers
 dialVideoBtn.onclick = ()=>{ const num = (dialInput.value||'').trim(); if(!num) return alert('Enter a 5-digit number'); initiateCallByNumber(num, true); };
@@ -672,6 +532,38 @@ loginBtn.onclick = async ()=>{
   if(!rawName || !pw) return alert('Provide username and password');
   await loginWithPassword(rawName, pw);
 };
+
+// Helper: check media permissions
+async function checkMediaPermissions(video = false) {
+  try {
+    const permissions = [];
+    if (video) permissions.push(navigator.permissions.query({ name: 'camera' }));
+    permissions.push(navigator.permissions.query({ name: 'microphone' }));
+    const results = await Promise.all(permissions);
+    for (const result of results) {
+      if (result.state === 'denied') {
+        alert('Camera/Microphone permission denied. Please allow access in browser settings and try again.');
+        return false;
+      }
+    }
+    return true;
+  } catch (e) {
+    // Fallback: try to get media briefly to check
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(video ? { video: true, audio: true } : { audio: true });
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    } catch (err) {
+      alert('Unable to access camera/microphone: ' + err.message);
+      return false;
+    }
+  }
+}
+
+// Helper: ensure Firebase connection
+function checkFirebaseConnection() {
+  return navigator.onLine; // Basic check
+}
 
 // Helper: simple SHA-256 hash for password before storing (client-side)
 async function hashPassword(pw){
@@ -707,9 +599,10 @@ async function registerUser(rawName, password){
     await set(userRef, { name: rawName, number: reservedNumber, passwordHash: pwHash, online: true, createdAt: Date.now(), lastSeen: Date.now(), clientId });
   myName = rawName; myRef = userRef; localStorage.setItem('dialerName', myName);
   profileInfo.textContent = `Signed in as: ${myName} #${reservedNumber}`;
+  if(profileDisplay) profileDisplay.textContent = `${myName} #${reservedNumber}`;
   createBtn.style.display = 'none'; signOutBtn.style.display = 'inline-block';
-      showAuthForm(false);
-      setSignedInUI(true);
+  showAuthForm(false);
+  showMainApp(true);
   await onDisconnect(myRef).update({ online: false, lastSeen: Date.now() });
   startListeningUsers(); startListeningSessions(); startListeningContacts();
   startListeningLogs();
@@ -729,9 +622,10 @@ async function loginWithPassword(rawName, password){
     if(u.passwordHash !== pwHash) return alert('Invalid password');
   myName = rawName; myRef = userRef; localStorage.setItem('dialerName', myName);
   profileInfo.textContent = `Signed in as: ${myName} #${u.number}`;
+  if(profileDisplay) profileDisplay.textContent = `${myName} #${u.number}`;
   createBtn.style.display = 'none'; signOutBtn.style.display = 'inline-block';
-      showAuthForm(false);
-      setSignedInUI(true);
+  showAuthForm(false);
+  showMainApp(true);
   await onDisconnect(myRef).update({ online: false, lastSeen: Date.now() });
   await update(myRef, { online: true, lastSeen: Date.now() });
   startListeningUsers(); startListeningSessions(); startListeningContacts();
@@ -778,13 +672,8 @@ function renderPhonebook(){
     const row = document.createElement('div');
     row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='6px 0';
     const left = document.createElement('div'); left.innerHTML = `<strong>${info.label || info.number}</strong><div class="small muted">${info.number}</div>`;
-    const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px'; actions.style.alignItems='center';
-    // call buttons (video + audio)
-    const vid = document.createElement('button'); vid.textContent='📹'; vid.title = 'Video call'; vid.className = 'callBtn video'; vid.onclick = ()=> initiateCallByNumber(info.number, true);
-    const aud = document.createElement('button'); aud.textContent='🎧'; aud.title = 'Audio call'; aud.className = 'callBtn audio'; aud.onclick = ()=> initiateCallByNumber(info.number, false);
     const rm = document.createElement('button'); rm.textContent='Remove'; rm.style.background='#ef4444'; rm.style.color='white'; rm.style.borderRadius='8px'; rm.onclick = ()=> removeContact(info.number);
-    actions.appendChild(vid); actions.appendChild(aud); actions.appendChild(rm);
-    row.appendChild(left); row.appendChild(actions); phonebookDiv.appendChild(row);
+    row.appendChild(left); row.appendChild(rm); phonebookDiv.appendChild(row);
   }
 }
 
@@ -820,10 +709,8 @@ signOutBtn.onclick = async ()=>{
     usersDiv.innerHTML = '';
     contactsMap = {};
     phonebookDiv.innerHTML = 'No contacts yet';
-    // return to signed-out UI
-    // ensure any open camera/mic are stopped when signing out
-    try{ stopLocalMedia(); }catch(e){}
-    setSignedInUI(false);
+    showAuthForm(true);
+    showMainApp(false);
     // return to idle state
     setIdle(true);
   }catch(e){ console.error(e); }
@@ -899,8 +786,14 @@ function showIncomingCall(key, session){
   modal.style.display = 'flex';
   modalTitle.textContent = `${session.media === 'video' ? 'Video' : 'Audio'} call`;
   modalFrom.textContent = `From: ${session.from || 'Unknown'}`;
-  // adjust which accept buttons are visible for clarity
-  try{ updateModalButtonsForSession(session); }catch(e){}
+  // Show only the relevant accept button based on call type
+  if (session.media === 'video') {
+    acceptVideoBtn.style.display = 'inline-block';
+    acceptAudioBtn.style.display = 'none';
+  } else {
+    acceptVideoBtn.style.display = 'none';
+    acceptAudioBtn.style.display = 'inline-block';
+  }
 }
 
 rejectBtn.onclick = async ()=>{
@@ -908,33 +801,28 @@ rejectBtn.onclick = async ()=>{
   const sref = ref(db, 'sessions/' + incomingKey);
   await update(sref, { status: 'rejected' });
   closeModal();
-  // ensure we aren't holding the camera/mic (defensive)
-  try{ stopLocalMedia(); }catch(e){}
 };
 
-// Accept handlers remain direct. Show/hide buttons depending on offered media
+cancelDialBtn.onclick = async ()=>{
+  if(!currentSessionRef) return;
+  try{ await update(currentSessionRef, { status: 'ended', endedAt: Date.now() }); }catch(e){ console.error(e); }
+  cleanupCall();
+  closeDialingModal();
+};
+
+closeRejectionBtn.onclick = ()=>{
+  rejectionModal.style.display = 'none';
+};
+
+closeBusyBtn.onclick = ()=>{
+  busyModal.style.display = 'none';
+};
+
 acceptVideoBtn.onclick = ()=> acceptIncoming(true);
 acceptAudioBtn.onclick = ()=> acceptIncoming(false);
 
-// Modify modal display when showing incoming call so only matching accept option is visible
-function updateModalButtonsForSession(session){
-  try{
-    if(!session) return;
-    if(session.media === 'video'){
-      acceptVideoBtn.style.display = 'inline-block';
-      acceptAudioBtn.style.display = 'none';
-    } else if(session.media === 'audio'){
-      acceptVideoBtn.style.display = 'none';
-      acceptAudioBtn.style.display = 'inline-block';
-    } else {
-      acceptVideoBtn.style.display = 'inline-block';
-      acceptAudioBtn.style.display = 'inline-block';
-    }
-  }catch(e){ console.warn(e); }
-}
-
 async function acceptIncoming(isVideo){
-  if(!incomingKey || !incomingSession) return;
+  if(!await checkMediaPermissions(isVideo)){ closeModal(); return; }
   try{
     // record call meta for incoming call
     currentCallMeta = { peer: incomingSession.from, media: isVideo ? 'video' : 'audio', direction: 'incoming' };
@@ -942,55 +830,56 @@ async function acceptIncoming(isVideo){
     localStream = await navigator.mediaDevices.getUserMedia(isVideo ? {video:true,audio:true} : {audio:true});
     showLocalPreview(localStream);
 
-  // create peer connection and set remote offer
-  const sref = ref(db, 'sessions/' + incomingKey);
-  makePeerConnection(sref);
+    // create peer connection and set remote offer
+    makePeerConnection();
     for(const t of localStream.getTracks()) pc.addTrack(t, localStream);
 
     const offer = (typeof incomingSession.offer === 'string') ? JSON.parse(incomingSession.offer) : incomingSession.offer;
-    // listen for remote ICE candidates (trickle) before/while applying remote offer
-    try{
-      const candRef = ref(db, 'sessions/' + incomingKey + '/candidates');
-      sessionCandidateUnsub = onChildAdded(candRef, async (csnap)=>{
-        try{
-          const obj = csnap.val();
-          if(!obj) return;
-          if(obj.sender === (getMyKey() || clientId)) return;
-          const cand = JSON.parse(obj.candidate);
-          if(pc) await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(e=>console.warn('addIceCandidate incoming failed', e));
-        }catch(e){ console.warn('candidate add (incoming) failed', e); }
-      });
-    }catch(e){ console.warn('incoming candidate listener failed', e); }
-
     await pc.setRemoteDescription(offer);
     const answer = await pc.createAnswer();
-  await pc.setLocalDescription(answer);
-  // wait for local ICE to be gathered so the answer contains candidates (non-trickle)
-  await waitForIceGatheringComplete(pc);
+    await pc.setLocalDescription(answer);
 
-  // write answer back to session (include gathered ICE in localDescription)
-  // reuse the sref we created earlier
-  // set currentSessionRef so onicecandidate can use it
-  currentSessionRef = sref;
-  await update(sref, { answer: JSON.stringify(pc.localDescription), status: 'answered', answeredAt: Date.now() });
+    // write answer back to session with retry
+    const sref = ref(db, 'sessions/' + incomingKey);
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        await update(sref, { answer: JSON.stringify(pc.localDescription), status: 'answered', answeredAt: Date.now() });
+        break;
+      } catch (e) {
+        retries--;
+        if (retries === 0) throw e;
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    currentSessionRef = sref;
     callStatus.textContent = `In call with ${incomingSession.from}`;
     endCallBtn.style.display = 'inline-block';
     showInCallControls(true);
     // mark call started now (this is a reasonable proxy for connection start)
     callStartTime = Date.now(); savedThisCall = false;
     if(saveCallBtn) saveCallBtn.style.display = 'inline-block';
-  }catch(e){ console.error('accept failed', e); alert('Failed to accept call: ' + e); }
+  }catch(e){ console.error('accept failed', e); alert('Failed to accept call: ' + e.message + '. Please try again.'); cleanupCall(); }
   closeModal();
 }
 
-function closeModal(){
-  incomingKey = null; incomingSession = null; modal.style.display = 'none';
-  try{ if(acceptVideoBtn) acceptVideoBtn.style.display = 'inline-block'; if(acceptAudioBtn) acceptAudioBtn.style.display = 'inline-block'; }catch(e){}
+function closeModal(){ 
+  incomingKey = null; 
+  incomingSession = null; 
+  modal.style.display = 'none';
+  // Reset button visibility
+  acceptVideoBtn.style.display = 'inline-block';
+  acceptAudioBtn.style.display = 'inline-block';
 }
+
+function closeDialingModal(){ dialingModal.style.display = 'none'; }
 
 // --- Initiate call ---
 async function initiateCall(targetName, isVideo){
-  if(!myName){ alert('Create a profile first'); return; }
+  if(!myName){ alert('Please sign in first to make calls.'); return; }
+  if(currentSessionRef){ alert('You are already in a call. Please end it first.'); return; }
+  if(!checkFirebaseConnection()){ alert('No internet connection. Please check your network.'); return; }
+  if(!await checkMediaPermissions(isVideo)){ return; }
   try{
     // get local media early so we can add tracks
     localStream = await navigator.mediaDevices.getUserMedia(isVideo ? {video:true,audio:true} : {audio:true});
@@ -1002,22 +891,45 @@ async function initiateCall(targetName, isVideo){
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     await waitForIceGatheringComplete(pc);
-    // push session to DB
-    const sessionsRef = ref(db, 'sessions');
-    const newSessionRef = push(sessionsRef);
-  currentSessionRef = newSessionRef;
-  // ensure peer connection knows the session ref so onicecandidate can push candidates immediately
-  try{ if(pc) pc._sessionRef = newSessionRef; }catch(e){}
-    await set(newSessionRef, { from: myName, to: targetName, media: isVideo? 'video':'audio', offer: JSON.stringify(pc.localDescription), status: 'pending', createdAt: Date.now() });
-    callStatus.textContent = `Calling ${targetName}...`;
-  // store call meta for outgoing call
+    // push session to DB with retry
+    let newSessionRef;
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        const sessionsRef = ref(db, 'sessions');
+        newSessionRef = push(sessionsRef);
+        await set(newSessionRef, { from: myName, to: targetName, media: isVideo? 'video':'audio', offer: JSON.stringify(pc.localDescription), status: 'pending', createdAt: Date.now() });
+        break;
+      } catch (e) {
+        retries--;
+        if (retries === 0) throw e;
+        await new Promise(resolve => setTimeout(resolve, 1000)); // wait 1s before retry
+      }
+    }
+    currentSessionRef = newSessionRef;
+    // show dialing modal
+    dialingTitle.textContent = `Dialing ${targetName}`;
+    dialingModal.style.display = 'flex';
+    // store call meta for outgoing call
   currentCallMeta = { peer: targetName, media: isVideo ? 'video' : 'audio', direction: 'outgoing' };
+
+    // set timeout for no answer
+    const timeoutId = setTimeout(async () => {
+      if(!pc.remoteDescription){
+        alert('Call timed out - no answer. Please try again.');
+        try{ await update(currentSessionRef, { status: 'ended', endedAt: Date.now() }); }catch(e){}
+        cleanupCall();
+        closeDialingModal();
+      }
+    }, 30000);
 
     // listen for answer on this session
     onValue(newSessionRef, async (snap)=>{
       const val = snap.val();
       if(!val) return;
       if(val.answer && pc && !pc.remoteDescription){
+        clearTimeout(timeoutId);
+        closeDialingModal();
         try{
           const answer = (typeof val.answer === 'string') ? JSON.parse(val.answer) : val.answer;
           await pc.setRemoteDescription(answer);
@@ -1027,41 +939,23 @@ async function initiateCall(targetName, isVideo){
               // mark call started
               callStartTime = Date.now(); savedThisCall = false;
               if(saveCallBtn) saveCallBtn.style.display = 'inline-block';
-            // clear answer timeout
-            try{ if(answerTimeoutHandle) clearTimeout(answerTimeoutHandle); answerTimeoutHandle = null; }catch(e){}
-      try{ enterCallView(); }catch(e){}
-        }catch(e){ console.error('apply answer', e); }
+        }catch(e){ console.error('apply answer', e); alert('Failed to connect call. Please try again.'); cleanupCall(); }
       }
       if(val.status === 'rejected'){
-        callStatus.textContent = `${targetName} rejected the call`;
+        clearTimeout(timeoutId);
+        closeDialingModal();
+        rejectionMessage.textContent = `${targetName} declined the call`;
+        rejectionModal.style.display = 'flex';
         cleanupCall();
       }
       if(val.status === 'ended'){
+        clearTimeout(timeoutId);
+        closeDialingModal();
         callStatus.textContent = `Call ended`;
         cleanupCall();
       }
     });
-    // listen for remote ICE candidates (trickle)
-    try{
-      const candRef = ref(db, 'sessions/' + newSessionRef.key + '/candidates');
-      // listen for child added candidate entries
-      sessionCandidateUnsub = onChildAdded(candRef, async (csnap)=>{
-        try{
-          const obj = csnap.val();
-          if(!obj) return;
-          if(obj.sender === (getMyKey() || clientId)) return; // ignore our own
-          const cand = JSON.parse(obj.candidate);
-          if(pc){ await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(e=>console.warn('addIceCandidate failed', e)); }
-        }catch(e){ console.warn('candidate handler error', e); }
-      });
-    }catch(e){ console.warn('candidate listen failed', e); }
-    // start a timeout for waiting for an answer
-    try{ if(answerTimeoutHandle) clearTimeout(answerTimeoutHandle); answerTimeoutHandle = setTimeout(()=>{
-      callStatus.textContent = 'No answer — call timed out';
-      cleanupCall();
-      alert('Call timed out — no answer. Please try again.');
-    }, 30000); }catch(e){}
-  }catch(e){ console.error('initiate failed', e); alert('Call failed: ' + e); }
+  }catch(e){ console.error('initiate failed', e); alert('Failed to place call: ' + e.message + '. Please check your connection and permissions.'); cleanupCall(); closeDialingModal(); }
 }
 
 // Resolve a 5-digit number to a target display name then call
@@ -1085,10 +979,8 @@ async function initiateCallByNumber(number, isVideo){
 }
 
 // --- WebRTC helpers ---
-function makePeerConnection(sessionRef){
+function makePeerConnection(){
   pc = new RTCPeerConnection(pcConfig);
-  // attach the sessionRef so onicecandidate can push candidates to the correct session
-  try{ pc._sessionRef = sessionRef || null; }catch(e){}
   pc.ontrack = (ev)=>{
     if(ev.streams && ev.streams[0]) remoteVideo.srcObject = ev.streams[0];
     else {
@@ -1098,30 +990,21 @@ function makePeerConnection(sessionRef){
     setIdle(false);
     // show local preview now that call is connected
     try{ localPreview.style.display = 'block'; }catch(e){}
-    // switch UI into in-call focused view (CSS fullscreen overlay, not browser fullscreen)
-    try{ enterCallView(); }catch(e){ console.warn('enterCallView failed', e); }
+    // attempt to enter fullscreen for immersive call view
+    try{
+      const stage = document.getElementById('stage');
+      if(stage && !document.fullscreenElement){
+        stage.requestFullscreen && stage.requestFullscreen().catch(()=>{});
+        // add class to stage for fullscreen styling (also used when not actually in fullscreen)
+        stage.classList && stage.classList.add('fullscreen');
+      }
+    }catch(e){ console.warn('request fullscreen failed', e); }
   };
   pc.oniceconnectionstatechange = ()=>{
     console.log('ICE', pc.iceConnectionState);
     if(pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed'){
-      console.warn('ICE state failed/disconnected, cleaning up');
       cleanupCall();
     }
-  };
-  // send local ICE candidates to signaling (trickle ICE)
-  pc.onicecandidate = (ev)=>{
-    try{
-      if(!ev.candidate) return;
-      console.log('Local ICE candidate', ev.candidate);
-      // push candidate to session candidates if we have a sessionRef
-      try{
-        const sessRef = pc._sessionRef || currentSessionRef;
-        if(sessRef && sessRef.key){
-          const candPath = 'sessions/' + sessRef.key + '/candidates';
-          push(ref(db, candPath), { sender: getMyKey() || clientId, candidate: JSON.stringify(ev.candidate) });
-        }
-      }catch(e){ console.warn('failed to push candidate', e); }
-    }catch(e){ console.warn('onicecandidate error', e); }
   };
 }
 
@@ -1200,7 +1083,7 @@ function renderLogsList(logs){
     // add action button: if this peer is not in our contacts, show Add button (requires peerNumber)
     const actions = document.createElement('div'); actions.style.marginTop='6px';
     if(it.peerNumber && (!contactsMap || !Object.prototype.hasOwnProperty.call(contactsMap, String(it.peerNumber)))){
-      const addBtn = document.createElement('button'); addBtn.textContent = 'Add contact'; addBtn.style.marginLeft='6px'; addBtn.style.borderRadius='8px'; addBtn.style.padding='6px 8px'; addBtn.onclick = async ()=>{ await addContact(it.peerNumber, it.peerName || it.peer); try{ renderPhonebook(); }catch(e){} try{ const logs = await fetchLogsOnce(); renderLogsList(logs); }catch(e){} };
+      const addBtn = document.createElement('button'); addBtn.textContent = 'Add to contacts'; addBtn.style.marginLeft='6px'; addBtn.style.borderRadius='8px'; addBtn.style.padding='6px 8px'; addBtn.onclick = ()=>{ addContact(it.peerNumber, it.peerName || it.peer); };
       actions.appendChild(addBtn);
     } else if(!it.peerNumber){
       // try to resolve by name and show Resolve button
@@ -1212,9 +1095,6 @@ function renderLogsList(logs){
         if(snap && snap.exists()){
           const u = snap.val();
           await addContact(u.number, u.name);
-          // refresh phonebook and logs UI to show new contact and call buttons
-          try{ renderPhonebook(); }catch(e){}
-          try{ const logs = await fetchLogsOnce(); renderLogsList(logs); }catch(e){}
           alert('Contact added');
         }else{
           alert('User not found in directory');
@@ -1256,18 +1136,6 @@ function showLocalPreview(stream){
   // don't show preview yet — it will be made visible when remote video arrives (setIdle(false))
 }
 
-// Stop and release any local media devices (camera + microphone)
-function stopLocalMedia(){
-  try{
-    if(localStream){
-      for(const t of localStream.getTracks()){ try{ t.stop(); }catch(e){} }
-      localStream = null;
-    }
-  }catch(e){ console.warn('stopLocalMedia failed', e); }
-  try{ localPreviewVideo.srcObject = null; }catch(e){}
-  try{ localPreview.style.display = 'none'; }catch(e){}
-}
-
 endCallBtn.onclick = async ()=>{
   if(!currentSessionRef) return;
   try{
@@ -1292,12 +1160,8 @@ async function cleanupCall(){
   }catch(e){ console.error('error saving call log on cleanup', e); }
 
   if(pc){ try{ pc.close(); }catch(e){} pc = null; }
-  // remove candidate listener if present
-  try{ if(sessionCandidateUnsub) sessionCandidateUnsub(); sessionCandidateUnsub = null; }catch(e){}
-  // ensure local camera and mic are stopped and released
-  stopLocalMedia();
+  if(localStream){ for(const t of localStream.getTracks()) t.stop(); localStream = null; }
   remoteVideo.srcObject = null;
-  try{ remoteVideo.style.display = 'none'; }catch(e){}
   localPreview.style.display = 'none';
   localPreviewVideo.srcObject = null;
   currentSessionRef = null;
@@ -1309,13 +1173,19 @@ async function cleanupCall(){
   // reset call state
   currentCallMeta = null; callStartTime = null; savedThisCall = false;
   // return to idle UI
-  // exit focused call view and return to idle UI
-  try{ exitCallView(); }catch(e){}
-  // if the browser is in fullscreen, explicitly exit it so both devices leave fullscreen mode
-  try{ if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); }catch(e){}
   setIdle(true);
+  // close any open modals
+  closeDialingModal();
 }
 
+</script>
+<script>
+// Register service worker for PWA
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js')
+    .then(reg => console.log('Service Worker registered'))
+    .catch(err => console.log('Service Worker registration failed', err));
+}
 </script>
 </body>
 </html>
