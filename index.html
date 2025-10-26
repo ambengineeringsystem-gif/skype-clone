@@ -97,7 +97,16 @@
       .statusPill{flex:1;text-align:center}
     }
       /* toolbar + bottom nav */
-      .toolbar{background:transparent;padding:6px 4px}
+    .toolbar{background:transparent;padding:6px 4px;position:relative}
+    /* Signal strength widget (top-right) */
+    .signal{display:flex;gap:4px;align-items:flex-end;height:20px}
+    .signal .bar{width:6px;border-radius:3px;background:rgba(255,255,255,0.06);transition:background 160ms,height 160ms;display:inline-block}
+    .signal .bar:nth-child(1){height:6px}
+    .signal .bar:nth-child(2){height:10px}
+    .signal .bar:nth-child(3){height:14px}
+    .signal .bar:nth-child(4){height:18px}
+    .signal .bar.active{background:linear-gradient(180deg,var(--accent),#058b9a)}
+    .signalWrapper{position:absolute;right:12px;top:8px;z-index:12000}
   .sysBack{background:rgba(255,255,255,0.02);border:0;border-radius:10px;padding:8px 12px;font-size:18px}
   .sysHome{background:rgba(255,255,255,0.06);border:0;width:44px;height:44px;border-radius:50%;font-size:18px;display:flex;align-items:center;justify-content:center}
   .sysBar{position:fixed;left:0;right:0;bottom:calc(12px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:24px;z-index:10001;padding-bottom:env(safe-area-inset-bottom)}
@@ -108,6 +117,21 @@
   .appGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:12px;grid-auto-rows:1fr}
   .appIcon{aspect-ratio:1/1;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);border-radius:12px;padding:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:0;cursor:pointer;font-size:18px}
   .appIcon .small{margin-top:6px}
+  /* On-screen dialer styles */
+  .dialerOverlay{position:fixed;left:0;top:0;width:100vw;height:100vh;background:linear-gradient(180deg,rgba(2,6,23,0.9),rgba(2,6,23,0.95));display:none;align-items:center;justify-content:center;z-index:12000}
+  .dialerCard{background:var(--card);padding:18px;border-radius:14px;width:92%;max-width:420px;color:var(--muted);box-shadow:0 10px 30px rgba(2,6,23,0.7);}
+  .dialDisplay{font-size:1.4rem;padding:12px;border-radius:10px;background:rgba(255,255,255,0.03);text-align:center;letter-spacing:3px;color:var(--accent);margin-bottom:12px}
+  .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .key{background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);padding:16px;border-radius:12px;text-align:center;font-size:1.2rem;color:white;border:0}
+  .key.action{background:linear-gradient(180deg,#10b981,#059669);font-weight:700}
+  .key.del{background:linear-gradient(180deg,#ef4444,#dc2626)}
+  .dialActions{display:flex;gap:8px;margin-top:12px;justify-content:space-between}
+  .dialerMenu{position:absolute;right:14px;top:14px;background:var(--card);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.5);overflow:hidden;display:none}
+  .dialerMenu button{display:block;padding:10px 14px;border:0;background:transparent;color:var(--muted);width:200px;text-align:left}
+  .dialerMenu button:hover{background:rgba(255,255,255,0.03);color:white}
+  /* add-contact modal inside dialer */
+  .smallModal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:12500;background:var(--card);padding:16px;border-radius:12px;min-width:260px;max-width:92%;box-shadow:0 8px 30px rgba(0,0,0,0.6);display:none}
+  .smallModal input{width:100%;padding:8px;margin-top:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
   @media (max-width:640px){ .leftPages{height:calc(100vh - 120px)} }
   </style>
 </head>
@@ -131,6 +155,14 @@
     <!-- Top toolbar (phone-like) -->
     <div class="toolbar" style="margin-top:10px;display:flex;align-items:center;gap:8px;justify-content:center">
       <div id="pageTitle" style="font-weight:700">Contacts</div>
+      <div class="signalWrapper" aria-hidden="true" style="display:none">
+        <div id="signalBars" class="signal" title="Signal strength">
+          <div class="bar" data-index="1"></div>
+          <div class="bar" data-index="2"></div>
+          <div class="bar" data-index="3"></div>
+          <div class="bar" data-index="4"></div>
+        </div>
+      </div>
     </div>
 
   <div class="grid">
@@ -146,6 +178,52 @@
               <button class="appIcon" data-target="messenger">💬<div class="small">Messenger</div></button>
               <!-- placeholders to fill 3x3 grid -->
               <div></div><div></div><div></div>
+            </div>
+            <!-- Home dialer overlay -->
+            <div id="homeDialer" class="dialerOverlay" aria-hidden="true">
+              <div class="dialerCard" style="position:relative">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div style="font-weight:700">Dial</div>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <button onclick="toggleDialerMenu(event)" title="Options" class="callAction" style="padding:6px 8px">⋮</button>
+                    <button onclick="hideHomeDialer()" class="callAction reject" style="padding:6px 10px">Close</button>
+                  </div>
+                </div>
+                <div id="dialerMenu" class="dialerMenu" style="right:12px;top:46px">
+                  <button id="dialerAddContactBtn" onclick="showAddContactFromDialer()">Add as new contact</button>
+                </div>
+                <div id="homeDialDisplay" class="dialDisplay">&nbsp;</div>
+                <div class="keypad" id="homeKeypad">
+                  <button class="key" onclick="pressHomeDigit('1')">1</button>
+                  <button class="key" onclick="pressHomeDigit('2')">2</button>
+                  <button class="key" onclick="pressHomeDigit('3')">3</button>
+                  <button class="key" onclick="pressHomeDigit('4')">4</button>
+                  <button class="key" onclick="pressHomeDigit('5')">5</button>
+                  <button class="key" onclick="pressHomeDigit('6')">6</button>
+                  <button class="key" onclick="pressHomeDigit('7')">7</button>
+                  <button class="key" onclick="pressHomeDigit('8')">8</button>
+                  <button class="key" onclick="pressHomeDigit('9')">9</button>
+                  <button class="key" onclick="pressHomeDigit('*')">*</button>
+                  <button class="key" onclick="pressHomeDigit('0')">0</button>
+                  <button class="key del" onclick="pressHomeBack()">⌫</button>
+                </div>
+                <div class="dialActions">
+                  <button class="key action" style="flex:1;margin-right:6px" onclick="homeDialCall(true)">📹 Video</button>
+                  <button class="key action" style="flex:1;margin-left:6px" onclick="homeDialCall(false)">🎧 Audio</button>
+                </div>
+                </div>
+                <!-- add-contact small modal -->
+                <div id="addContactModal" class="smallModal" role="dialog" aria-hidden="true">
+                  <div style="font-weight:700">Add Contact</div>
+                  <div class="muted small">Number</div>
+                  <input id="addContactNumber" placeholder="Number" />
+                  <div class="muted small" style="margin-top:8px">Label (optional)</div>
+                  <input id="addContactLabelModal" placeholder="Label" />
+                  <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+                    <button onclick="hideAddContactModal()" class="callAction reject">Cancel</button>
+                    <button onclick="saveContactFromDialer()" class="callAction" style="background:linear-gradient(180deg,#06b6d4,#0891b2)">Save</button>
+                  </div>
+                </div>
             </div>
           </section>
 
@@ -163,9 +241,7 @@
           <section id="pageDialer" class="page" style="display:none">
             <label>Dial</label>
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;margin-top:8px">
-              <input id="dialInput" placeholder="Dial number e.g. 12345" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit" />
-              <button id="dialVideo" class="callBtn video" title="Dial video">📹</button>
-              <button id="dialAudio" class="callBtn audio" title="Dial audio">🎧</button>
+              <button id="openDialerBtn" class="callBtn video" title="Open dialer" style="flex:1;justify-content:center">📞 Open Dialer</button>
             </div>
             <div id="users" class="usersList"></div>
           </section>
@@ -246,6 +322,22 @@
     </div>
   </div>
 
+  <!-- Contact call options modal -->
+  <div id="contactCallModal" class="modal" style="display:none">
+    <div class="card">
+      <h2 id="contactCallTitle">Call</h2>
+      <div id="contactCallNumber" class="muted small">Number</div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+        <button id="contactCallVideo" class="callAction acceptVid">Answer Video</button>
+        <button id="contactCallAudio" class="callAction acceptAud">Answer Audio</button>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:center">
+        <button id="contactCallRemove" class="callAction reject" style="background:#ef4444;color:white">Remove</button>
+        <button onclick="document.getElementById('contactCallModal').style.display='none'" class="callAction reject">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Dialing modal -->
   <div id="dialingModal" class="modal" style="display:none">
     <div class="card">
@@ -293,6 +385,7 @@
       <h2>Settings</h2>
       <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
         <button onclick="installApp()" class="callAction" style="background:linear-gradient(180deg,#06b6d4,#0891b2)">Install App</button>
+        <button onclick="clearAppData()" class="callAction" title="Clear cache & cookies" style="background:linear-gradient(180deg,#f97316,#dc2626)">Clear cache & cookies</button>
         <button onclick="settingsModal.style.display='none'" class="callAction reject">Close</button>
       </div>
     </div>
@@ -322,9 +415,7 @@ const passwordInput = document.getElementById('password');
 const createBtn = document.getElementById('registerBtn');
 const signOutBtn = document.getElementById('signOut');
 const loginBtn = document.getElementById('loginBtn');
-const dialInput = document.getElementById('dialInput');
-const dialVideoBtn = document.getElementById('dialVideo');
-const dialAudioBtn = document.getElementById('dialAudio');
+const openDialerBtn = document.getElementById('openDialerBtn');
 const contactNumberInput = document.getElementById('contactNumber');
 const contactLabelInput = document.getElementById('contactLabel');
 const addContactBtn = document.getElementById('addContact');
@@ -380,8 +471,92 @@ const tabHistory = document.getElementById('tabHistory');
 const tabProfile = document.getElementById('tabProfile');
 let inCall = false;
 
+// Signal strength helper (0-4)
+function setSignalStrength(level){
+  try{
+    level = Math.max(0, Math.min(4, Number(level)||0));
+    const bars = document.querySelectorAll('#signalBars .bar');
+    bars.forEach((b, i)=>{
+      const idx = i+1;
+      if(idx <= level) b.classList.add('active'); else b.classList.remove('active');
+    });
+    const el = document.getElementById('signalBars');
+    if(el) el.setAttribute('data-level', String(level));
+  }catch(e){console.error('setSignalStrength', e)}
+}
+
+// initialize to full strength
+setTimeout(()=> setSignalStrength(4), 200);
+
+// Live RTCPeerConnection signal monitor
+let _signalMonitor = { intervalId: null, lastBytesReceived: 0, lastTimestamp: 0 };
+function startSignalMonitor(pcInstance, intervalMs = 1500){
+  try{
+    if(!_signalMonitor) _signalMonitor = {};
+    stopSignalMonitor();
+    if(!pcInstance) return;
+    _signalMonitor.intervalId = setInterval(async ()=>{
+      try{
+        const stats = await pcInstance.getStats();
+        let packetsLost = 0, packetsTotal = 0, rtt = 0, jitter = 0;
+        let found = false;
+        stats.forEach(r => {
+          // inbound-rtp usually contains packetsReceived/packetsLost and jitter
+          if(r.type === 'inbound-rtp' && (r.kind==='video' || r.mediaType==='video' || r.trackId || r.mediaType==='audio')){
+            found = true;
+            packetsLost += Number(r.packetsLost || 0);
+            packetsTotal += Number((r.packetsReceived || 0) + (r.packetsLost || 0));
+            jitter = Math.max(jitter, Number(r.jitter || 0));
+            if(r.roundTripTime) rtt = Math.max(rtt, Number(r.roundTripTime || 0));
+          }
+          // candidate-pair may contain currentRoundTripTime
+          if(r.type === 'candidate-pair' && r.currentRoundTripTime){ rtt = Math.max(rtt, Number(r.currentRoundTripTime || 0)); }
+        });
+
+        // fallback: if nothing found, try outbound-rtp to estimate activity
+        if(!found){
+          stats.forEach(r=>{
+            if(r.type === 'outbound-rtp' && (r.kind==='video' || r.mediaType==='video' || r.trackId)){
+              found = true;
+              // outbound reports don't include packetsLost client-side reliably
+              packetsTotal += Number(r.packetsSent || 0);
+            }
+          });
+        }
+
+        let level = 4;
+        if(found && packetsTotal>0){
+          const lossRatio = packetsLost / Math.max(1, packetsTotal);
+          // map loss ratio to a 0-4 scale (lower loss -> higher bars)
+          if(lossRatio < 0.01) level = 4;
+          else if(lossRatio < 0.03) level = 3;
+          else if(lossRatio < 0.06) level = 2;
+          else if(lossRatio < 0.12) level = 1;
+          else level = 0;
+          // degrade further on large rtt or jitter
+          if(rtt && rtt > 0.3) level = Math.max(0, level - 1);
+          if(jitter && jitter > 0.05) level = Math.max(0, level - 1);
+        } else {
+          // no reliable stats: if pc exists assume medium
+          level = 3;
+        }
+        setSignalStrength(level);
+      }catch(e){ console.warn('signal monitor error', e); }
+    }, intervalMs);
+  }catch(e){ console.warn('startSignalMonitor failed', e); }
+}
+
+function stopSignalMonitor(){
+  try{
+    if(_signalMonitor && _signalMonitor.intervalId){ clearInterval(_signalMonitor.intervalId); _signalMonitor.intervalId = null; }
+  }catch(e){ console.warn('stopSignalMonitor', e); }
+}
+
 function enterCallMode() {
   inCall = true;
+  // hide signal widget and stop monitoring during active call
+  try{ const sig = document.querySelector('.signalWrapper'); if(sig){ sig.style.display = 'none'; sig.setAttribute('aria-hidden','true'); } }catch(e){}
+  try{ stopSignalMonitor(); }catch(e){}
   const header = document.querySelector('header');
   if (header) header.style.display = 'none';
   const nav = document.querySelector('nav');
@@ -474,6 +649,12 @@ function exitCallMode() {
     videoStage.style.zIndex = '';
     // reset video sizing
     videoStage.querySelectorAll('video').forEach(v => { v.style.width = ''; v.style.height = ''; v.style.objectFit = ''; });
+    // restore signal widget visibility only if we're on the Dial page
+    try{
+      const current = currentPage || (navStack.length>0? navStack[navStack.length-1] : 'home');
+      const sig = document.querySelector('.signalWrapper');
+      if(sig){ if(String(current) === 'dial'){ sig.style.display = 'block'; sig.setAttribute('aria-hidden','false'); } else { sig.style.display = 'none'; sig.setAttribute('aria-hidden','true'); } }
+    }catch(e){ }
   }
 }
 let navStack = [];
@@ -487,6 +668,15 @@ function navigateTo(pageId, push=true){
   const key = pageId.replace(/^page/,'').toLowerCase();
   const target = pages[key] || pages[pageId];
   if(target) target.style.display = 'block';
+  // If navigating to the dial page, ensure dial UI is reset and any home dialer overlays are closed
+  try{
+    if(key === 'dial'){
+      const di = document.getElementById('dialInput'); if(di) { di.value = ''; di.blur(); }
+      const homeDial = document.getElementById('homeDialer'); if(homeDial){ homeDial.style.display = 'none'; homeDial.setAttribute('aria-hidden','true'); }
+      const menu = document.getElementById('dialerMenu'); if(menu) menu.style.display = 'none';
+      const addModal = document.getElementById('addContactModal'); if(addModal){ addModal.style.display = 'none'; addModal.setAttribute('aria-hidden','true'); }
+    }
+  }catch(e){ console.warn('navigateTo dial reset failed', e); }
   // title
   const titleMap = { home: 'Home', contacts: 'Contacts', dial: 'Call', history: 'Call History', profile: 'Profile', settings: 'Settings' };
   pageTitleEl.textContent = titleMap[key] || 'Dialer';
@@ -498,6 +688,19 @@ function navigateTo(pageId, push=true){
   if(key === 'dial' && tabDial) tabDial.classList.add('active');
   if(key === 'history' && tabHistory) tabHistory.classList.add('active');
   if(key === 'profile' && tabProfile) tabProfile.classList.add('active');
+  // show signal only on Dial page
+  try{
+    const sig = document.querySelector('.signalWrapper');
+    if(sig){
+      if(key === 'dial'){
+        sig.style.display = 'block'; sig.setAttribute('aria-hidden','false');
+        try{ if(window.pc) startSignalMonitor(window.pc); }catch(e){}
+      } else {
+        sig.style.display = 'none'; sig.setAttribute('aria-hidden','true');
+        try{ stopSignalMonitor(); }catch(e){}
+      }
+    }
+  }catch(e){}
 }
 
 // back behavior
@@ -511,6 +714,83 @@ if(navBackBtn) navBackBtn.onclick = ()=>{
 };
 if(navHomeBtn) navHomeBtn.onclick = ()=>{ navStack = []; navigateTo('home', true); };
 
+// Home dialer control functions
+function showHomeDialer(){
+  const d = document.getElementById('homeDialer');
+  if(d){
+    // ensure sub-elements are reset when opening
+    d.style.display = 'flex';
+    d.setAttribute('aria-hidden','false');
+    const disp = document.getElementById('homeDialDisplay'); if(disp) disp.textContent = '';
+    const menu = document.getElementById('dialerMenu'); if(menu) menu.style.display = 'none';
+    const addModal = document.getElementById('addContactModal'); if(addModal) { addModal.style.display = 'none'; addModal.setAttribute('aria-hidden','true'); }
+  }
+}
+function hideHomeDialer(){
+  const d = document.getElementById('homeDialer');
+  if(d){
+    d.style.display = 'none'; d.setAttribute('aria-hidden','true');
+    // also hide any open sub-UIs
+    const menu = document.getElementById('dialerMenu'); if(menu) menu.style.display = 'none';
+    const addModal = document.getElementById('addContactModal'); if(addModal) { addModal.style.display = 'none'; addModal.setAttribute('aria-hidden','true'); }
+    const disp = document.getElementById('homeDialDisplay'); if(disp) disp.textContent = '';
+  }
+}
+function pressHomeDigit(ch){
+  const disp = document.getElementById('homeDialDisplay');
+  if(!disp) return; const cur = (disp.textContent||'').replace(/\s/g,'');
+  if(cur.length >= 20) return; // limit
+  disp.textContent = (cur + ch).replace(/(.{3})/g,'$1 ').trim();
+}
+function pressHomeBack(){
+  const disp = document.getElementById('homeDialDisplay'); if(!disp) return; const cur = (disp.textContent||'').replace(/\s/g,'');
+  disp.textContent = cur.slice(0,-1).replace(/(.{3})/g,'$1 ').trim();
+}
+function homeDialCall(isVideo){
+  const disp = document.getElementById('homeDialDisplay'); if(!disp) return; const num = (disp.textContent||'').replace(/\s/g,'');
+  if(!/^[0-9*#]{3,}$/.test(num)) { alert('Enter a number to dial'); return; }
+  hideHomeDialer();
+  // If it's a proper 5-digit number, use existing helper; otherwise pass raw
+  const n = num;
+  initiateCallByNumber(n, !!isVideo);
+}
+
+// Expose to global scope for inline onclick handlers (module scripts are not global)
+window.showHomeDialer = showHomeDialer;
+window.hideHomeDialer = hideHomeDialer;
+window.pressHomeDigit = pressHomeDigit;
+window.pressHomeBack = pressHomeBack;
+window.homeDialCall = homeDialCall;
+// Dialer menu / add-contact handlers
+function toggleDialerMenu(e){
+  const menu = document.getElementById('dialerMenu');
+  if(!menu) return;
+  menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+  e && e.stopPropagation && e.stopPropagation();
+}
+function showAddContactFromDialer(){
+  const disp = document.getElementById('homeDialDisplay'); if(!disp) return; const num = (disp.textContent||'').replace(/\s/g,'');
+  if(!num) { alert('Enter a number first'); return; }
+  // populate modal
+  const modal = document.getElementById('addContactModal');
+  if(!modal) return; document.getElementById('addContactNumber').value = num; document.getElementById('addContactLabelModal').value = '';
+  modal.style.display = 'block'; modal.setAttribute('aria-hidden','false');
+  // hide menu
+  const menu = document.getElementById('dialerMenu'); if(menu) menu.style.display = 'none';
+}
+function hideAddContactModal(){ const m = document.getElementById('addContactModal'); if(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); } }
+async function saveContactFromDialer(){
+  const num = (document.getElementById('addContactNumber').value||'').trim();
+  const label = (document.getElementById('addContactLabelModal').value||'').trim();
+  if(!/^[0-9*#]{1,}$/.test(num)) return alert('Invalid number');
+  try{
+    const ok = await addContact(num, label);
+    if(ok){ hideAddContactModal(); alert('Contact added'); }
+    else alert('Failed to add contact');
+  }catch(e){ console.error(e); alert('Error adding contact'); }
+}
+window.toggleDialerMenu = toggleDialerMenu; window.showAddContactFromDialer = showAddContactFromDialer; window.hideAddContactModal = hideAddContactModal; window.saveContactFromDialer = saveContactFromDialer;
+
 // bottom tab handlers
 if(tabHome) tabHome.onclick = ()=> navigateTo('home');
 if(tabDial) tabDial.onclick = ()=> navigateTo('dial');
@@ -522,7 +802,10 @@ document.querySelectorAll('.appIcon').forEach(btn=>{
   btn.onclick = ()=>{
     const t = btn.getAttribute('data-target');
     if(t === 'contacts') navigateTo('contacts');
-    else if(t === 'dial') navigateTo('dial');
+    else if(t === 'dial') {
+      // Always open the home dialer overlay when the Call icon is tapped
+      showHomeDialer();
+    }
     else if(t === 'history') navigateTo('history');
     else if(t === 'profile') navigateTo('profile');
     else if(t === 'settings') {
@@ -630,9 +913,8 @@ setIdle(true);
 // show auth form by default
 showAuthForm(true);
 
-// Dial by number handlers
-dialVideoBtn.onclick = ()=>{ const num = (dialInput.value||'').trim(); if(!num) return alert('Enter a 5-digit number'); initiateCallByNumber(num, true); };
-dialAudioBtn.onclick = ()=>{ const num = (dialInput.value||'').trim(); if(!num) return alert('Enter a 5-digit number'); initiateCallByNumber(num, false); };
+// Open Dialer button (replaces inline dial input)
+if(openDialerBtn) openDialerBtn.onclick = ()=>{ showHomeDialer(); };
 
 // Register & login handlers (username + password)
 createBtn.onclick = async ()=>{
@@ -790,9 +1072,31 @@ function renderPhonebook(){
     const row = document.createElement('div');
     row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='6px 0';
     const left = document.createElement('div'); left.innerHTML = `<strong>${info.label || info.number}</strong><div class="small muted">${info.number}</div>`;
-    const rm = document.createElement('button'); rm.textContent='Remove'; rm.style.background='#ef4444'; rm.style.color='white'; rm.style.borderRadius='8px'; rm.onclick = ()=> removeContact(info.number);
-    row.appendChild(left); row.appendChild(rm); phonebookDiv.appendChild(row);
+    const right = document.createElement('div');
+    right.style.display = 'flex'; right.style.gap = '8px'; right.style.alignItems = 'center';
+    // call button
+    const callBtn = document.createElement('button'); callBtn.textContent='📞'; callBtn.title='Call'; callBtn.className='callBtn'; callBtn.style.padding='8px 10px'; callBtn.onclick = ()=> showContactCallOptions(info.number, info.label || '');
+  right.appendChild(callBtn);
+    row.appendChild(left); row.appendChild(right); phonebookDiv.appendChild(row);
   }
+}
+
+// Contact call helper
+let contactCallTarget = null;
+function showContactCallOptions(number, label){
+  contactCallTarget = number;
+  const m = document.getElementById('contactCallModal');
+  if(!m) return;
+  const name = label || number;
+  document.getElementById('contactCallTitle').textContent = `Call ${name}`;
+  document.getElementById('contactCallNumber').textContent = number;
+  const vidBtn = document.getElementById('contactCallVideo');
+  const audBtn = document.getElementById('contactCallAudio');
+  if(vidBtn){ vidBtn.textContent = `Video call "${name}"`; vidBtn.onclick = ()=>{ m.style.display='none'; initiateCallByNumber(number, true); }; }
+  if(audBtn){ audBtn.textContent = `Call "${name}"`; audBtn.onclick = ()=>{ m.style.display='none'; initiateCallByNumber(number, false); }; }
+  const remBtn = document.getElementById('contactCallRemove');
+  if(remBtn){ remBtn.textContent = `Remove "${name}"`; remBtn.onclick = ()=>{ m.style.display='none'; removeContact(number); } }
+  m.style.display = 'flex';
 }
 
 async function addContact(number, label){
@@ -1173,6 +1477,11 @@ function makePeerConnection(){
       cleanupCall();
     }
   };
+  // start signal monitoring for this peer connection only if signal UI is visible (Dial page)
+  try{
+    const sigWrap = document.querySelector('.signalWrapper');
+    if(sigWrap && sigWrap.style.display !== 'none') startSignalMonitor(pc);
+  }catch(e){ console.warn('startSignalMonitor failed', e); }
 }
 
 function waitForIceGatheringComplete(pc){
@@ -1326,6 +1635,8 @@ async function cleanupCall(){
     }
   }catch(e){ console.error('error saving call log on cleanup', e); }
 
+  // stop monitoring signal
+  try{ stopSignalMonitor(); }catch(e){}
   if(pc){ try{ pc.close(); }catch(e){} pc = null; }
   if(localStream){ for(const t of localStream.getTracks()) t.stop(); localStream = null; }
   remoteVideo.srcObject = null;
@@ -1373,6 +1684,34 @@ function showNotification(title, options = {}) {
   } else if ('Notification' in window && Notification.permission === 'granted') {
     new Notification(title, options);
   }
+}
+
+// Clear caches, service worker, storage, and cookies
+async function clearAppData(){
+  try{
+    // Unregister service workers
+    if('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for(const r of regs) await r.unregister();
+    }
+    // Clear caches
+    if('caches' in window){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    // Clear local/session storage
+    try{ localStorage.clear(); sessionStorage.clear(); }catch(e){}
+    // Clear cookies (best-effort for same-site cookies)
+    try{
+      document.cookie.split(';').forEach(function(c){
+        const eqPos = c.indexOf('=');
+        const name = eqPos > -1 ? c.substr(0, eqPos).trim() : c.trim();
+        if(name) document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+      });
+    }catch(e){}
+    alert('Cache, service worker and local data cleared. The app will reload.');
+    setTimeout(()=> location.reload(true), 300);
+  }catch(e){ console.error('clearAppData failed', e); alert('Failed to clear app data: ' + e.message); }
 }
 
 function installApp() {
