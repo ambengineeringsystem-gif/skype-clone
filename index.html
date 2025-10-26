@@ -6,6 +6,8 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📞%3C/text%3E%3C/svg%3E" />
   <title>Dialer — WebRTC P2P Calls</title>
+  <!-- Hidden audio for ringing -->
+  <audio id="ringAudio" src="ring.mp3" loop preload="auto"></audio>
   <style>
     :root{--bg:#081620;--card:#06121a;--muted:#9aa6b2;--accent:#06b6d4;--accent-2:#10b981}
     html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#021226 0%, #03111a 100%);color:#e6eef6;-webkit-font-smoothing:antialiased}
@@ -62,7 +64,12 @@
     .statusPill{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.02);font-size:0.9rem}
 
     .modal{position:fixed;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.6))}
-    .card{background:var(--card);padding:18px;border-radius:14px;min-width:260px;text-align:center;box-shadow:0 10px 30px rgba(2,6,23,0.7)}
+    .card{background:var(--card);padding:18px;border-radius:14px;min-width:260px;text-align:center;box-shadow:0 10px 30px rgba(2,6,23,0.7);border:2px solid #333}
+
+    /* Mobile modal adjustments */
+    @media (max-width:640px){
+      .card{padding:30px;font-size:1.2rem;min-width:300px}
+    }
     .card h2{margin:0 0 6px}
     .muted{color:var(--muted)}
     footer{margin-top:12px;color:var(--muted);font-size:0.82rem}
@@ -606,6 +613,7 @@ async function registerUser(rawName, password){
   await onDisconnect(myRef).update({ online: false, lastSeen: Date.now() });
   startListeningUsers(); startListeningSessions(); startListeningContacts();
   startListeningLogs();
+  if ('Notification' in window) { Notification.requestPermission(); }
     return true;
   }catch(e){ console.error('register failed', e); alert('Register failed: ' + e); }
 }
@@ -630,6 +638,7 @@ async function loginWithPassword(rawName, password){
   await update(myRef, { online: true, lastSeen: Date.now() });
   startListeningUsers(); startListeningSessions(); startListeningContacts();
   startListeningLogs();
+  if ('Notification' in window) { Notification.requestPermission(); }
     return true;
   }catch(e){ console.error(e); alert('Login failed: ' + e); }
 }
@@ -780,12 +789,35 @@ function startListeningSessions(){
 let incomingKey = null;
 let incomingSession = null;
 
+function startRinging() {
+  const ringAudio = document.getElementById('ringAudio');
+  if (ringAudio) {
+    ringAudio.currentTime = 0;
+    ringAudio.play().catch(e => console.warn('Could not play ringtone', e));
+  }
+}
+
+function stopRinging() {
+  const ringAudio = document.getElementById('ringAudio');
+  if (ringAudio) {
+    ringAudio.pause();
+    ringAudio.currentTime = 0;
+  }
+}
+
 function showIncomingCall(key, session){
   if(incomingKey) return; // already showing
   incomingKey = key; incomingSession = session;
   modal.style.display = 'flex';
   modalTitle.textContent = `${session.media === 'video' ? 'Video' : 'Audio'} call`;
   modalFrom.textContent = `From: ${session.from || 'Unknown'}`;
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('Incoming ' + session.media + ' call from ' + session.from);
+  }
+  if (navigator.vibrate) {
+    navigator.vibrate(200);
+  }
+  startRinging();
   // Show only the relevant accept button based on call type
   if (session.media === 'video') {
     acceptVideoBtn.style.display = 'inline-block';
@@ -867,6 +899,7 @@ function closeModal(){
   incomingKey = null; 
   incomingSession = null; 
   modal.style.display = 'none';
+  stopRinging();
   // Reset button visibility
   acceptVideoBtn.style.display = 'inline-block';
   acceptAudioBtn.style.display = 'inline-block';
@@ -910,6 +943,9 @@ async function initiateCall(targetName, isVideo){
     // show dialing modal
     dialingTitle.textContent = `Dialing ${targetName}`;
     dialingModal.style.display = 'flex';
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Calling ' + targetName);
+    }
     // store call meta for outgoing call
   currentCallMeta = { peer: targetName, media: isVideo ? 'video' : 'audio', direction: 'outgoing' };
 
