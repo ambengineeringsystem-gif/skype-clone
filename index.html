@@ -96,6 +96,54 @@
       .controls{justify-content:space-between}
       .statusPill{flex:1;text-align:center}
     }
+      /* Messenger-specific polish */
+      #pageMessenger { color: #dbeef6; }
+      #messengerContacts { background: rgba(255,255,255,0.01); }
+      #messengerContacts button.messengerContactBtn{ color: #c7eaf0; background: transparent; border: 1px solid transparent; }
+      #messengerContacts button.messengerContactBtn:hover{ background: rgba(255,255,255,0.02); color: #fff; }
+      #messengerContacts button.messengerContactBtn.selected{ background: linear-gradient(90deg, rgba(6,182,212,0.12), rgba(16,185,129,0.06)); border-left:4px solid var(--accent); padding-left:10px; color: #fff; }
+      #messagesList{ background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00)); border-radius:10px; }
+      #messagesList .msg-row{ margin-bottom:10px; display:flex; }
+      .msg-bubble{ max-width:70%; padding:10px 12px; border-radius:14px; box-shadow: 0 4px 14px rgba(2,6,23,0.6); font-size:0.98rem; line-height:1.2 }
+      .msg-bubble.mine{ background: linear-gradient(180deg,#06b6d4,#028a9a); color:#002b2f; border-bottom-right-radius:4px; }
+      .msg-bubble.their{ background: rgba(255,255,255,0.03); color:#e6eef6; border-bottom-left-radius:4px; }
+      .msg-meta{ font-size:0.78rem; color:var(--muted); margin-top:6px }
+      #msgInput{ border:1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.25); color:inherit; }
+      #sendMsgBtn{ padding:10px 14px; border-radius:10px; }
+      /* scrollbar for messages and contacts */
+      #messagesList::-webkit-scrollbar, #messengerContacts::-webkit-scrollbar{ height:10px; width:10px }
+      #messagesList::-webkit-scrollbar-thumb, #messengerContacts::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.04); border-radius:10px }
+      #messagesList::-webkit-scrollbar-track, #messengerContacts::-webkit-scrollbar-track{ background: transparent }
+    #chatWith{ font-weight:700; color:#e6f7fb; }
+    #chatStatus{ color:var(--muted); font-size:0.85rem }
+    /* fullscreen & minimized states */
+    #pageMessenger.pm-fullscreen{ position:fixed; left:0; top:0; right:0; bottom:0; z-index:120000; padding:22px; background:linear-gradient(180deg,#021226 0%, #03111a 100%); }
+  #pageMessenger.pm-fullscreen .appGrid, #pageMessenger.pm-fullscreen .leftPages{ display:block }
+  /* hide contacts and keep only chat area in fullscreen */
+  #pageMessenger.pm-fullscreen #messengerContacts{ display:none !important }
+  #pageMessenger.pm-fullscreen .panel, #pageMessenger.pm-fullscreen .toolbar, #pageMessenger.pm-fullscreen .sysBar{ display:none }
+  /* minimized state removed */
+    /* make contact buttons easier to see on very dark background */
+  #messengerContacts .messengerContactBtn{ text-align:left; padding:10px; color:#bfeff6; display:flex;align-items:center;gap:12px;border-radius:8px;border:0 }
+  #messengerContacts .messengerContactBtn:hover{ color:#fff; background:rgba(255,255,255,0.02) }
+  .wa-contacts-list .avatar-small{ width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#062b3a,#083047);color:#c7eaf0;font-weight:700 }
+  .wa-contacts-list .contact-meta{ display:flex;flex-direction:column;align-items:flex-start }
+  .wa-contacts-list .contact-name{ font-weight:600 }
+  .wa-contacts-list .contact-sub{ font-size:0.85rem;color:var(--muted) }
+  /* WhatsApp-like chat styles */
+  .wa-chat { background: transparent; }
+  .wa-chat-header{ background:transparent }
+  .wa-messages{ background:linear-gradient(180deg, rgba(255,255,255,0.005), rgba(255,255,255,0.00)); }
+  .wa-input-bar input{ border-radius:20px }
+  .wa-messages .date-sep{ text-align:center;margin:12px 0;color:var(--muted);font-size:0.82rem }
+  /* unread badge */
+  .contact-badge{ min-width:20px; height:20px; padding:2px 6px; border-radius:10px; background:var(--accent); color:#002b2f; font-weight:700; font-size:0.75rem; display:inline-flex; align-items:center; justify-content:center }
+  .messenger-global-badge{ position:absolute; right:6px; top:6px; min-width:20px; height:20px; padding:2px 6px; border-radius:12px; background:#ef4444; color:white; font-weight:700; font-size:0.75rem }
+    #chatWith{ font-weight:700; color:#e6f7fb; }
+    #chatStatus{ color:var(--muted); font-size:0.85rem }
+    /* make contact buttons easier to see on very dark background */
+    #messengerContacts .messengerContactBtn{ text-align:left; padding:10px; color:#bfeff6 }
+    #messengerContacts .messengerContactBtn:hover{ color:#fff }
       /* toolbar + bottom nav */
     .toolbar{background:transparent;padding:6px 4px;position:relative}
     /* Signal strength widget (top-right) */
@@ -153,7 +201,7 @@
   <div id="mainApp" style="display:none">
   <div class="app">
     <!-- Top toolbar (phone-like) -->
-    <div class="toolbar" style="margin-top:10px;display:flex;align-items:center;gap:8px;justify-content:center">
+    <div class="toolbar" style="margin-top:10px;display:flex;align-items:center;gap:8px;justify-content:center;position:relative">
       <div id="pageTitle" style="font-weight:700">Contacts</div>
       <div class="signalWrapper" aria-hidden="true" style="display:none">
         <div id="signalBars" class="signal" title="Signal strength">
@@ -162,6 +210,18 @@
           <div class="bar" data-index="3"></div>
           <div class="bar" data-index="4"></div>
         </div>
+      </div>
+      <!-- Notification bell: shows global unread count -->
+      <button id="notifBell" title="Notifications" style="position:absolute;right:12px;top:8px;background:transparent;border:0;color:inherit;cursor:pointer;font-size:18px;display:flex;align-items:center;gap:8px">
+        🔔
+        <span id="notifBadge" class="messenger-global-badge" style="display:none">0</span>
+      </button>
+      <div id="notifPanel" style="position:absolute;right:12px;top:44px;min-width:260px;background:var(--card);border-radius:10px;padding:8px;box-shadow:0 8px 32px rgba(0,0,0,0.6);display:none;z-index:12005">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong>Notifications</strong>
+          <button id="notifClearAll" style="background:transparent;border:0;color:var(--muted);cursor:pointer">Clear</button>
+        </div>
+        <div id="notifList" style="max-height:260px;overflow:auto;color:inherit">No notifications</div>
       </div>
     </div>
 
@@ -175,7 +235,7 @@
               <button class="appIcon" data-target="history">🕘<div class="small">History</div></button>
               <button class="appIcon" data-target="profile">👤<div class="small">Profile</div></button>
               <button class="appIcon" data-target="settings">⚙️<div class="small">Settings</div></button>
-              <button class="appIcon" data-target="messenger">💬<div class="small">Messenger</div></button>
+            <button class="appIcon" data-target="messenger">💬<div class="small">Messenger</div></button>
               <!-- placeholders to fill 3x3 grid -->
               <div></div><div></div><div></div>
             </div>
@@ -260,6 +320,48 @@
             <button id="signOut" style="margin-top:16px; background:#ef4444; color:white; border:0; padding:10px 16px; border-radius:8px">Logout</button>
           </section>
           
+          <section id="pageMessenger" class="page" style="display:none;padding:6px">
+            <div class="wa-messenger" style="display:flex;gap:12px;align-items:stretch;height:70vh">
+              <!-- LEFT: contacts column -->
+              <aside class="wa-contacts" style="width:320px;display:flex;flex-direction:column">
+                <div class="wa-contacts-header" style="padding:10px 8px;display:flex;align-items:center;justify-content:space-between">
+                  <div style="font-weight:700">Chats</div>
+                  <button id="waNewChat" class="callAction" title="New chat" style="padding:6px 8px">＋</button>
+                </div>
+                <div style="padding:8px"><input id="waSearch" placeholder="Search or start new chat" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit" /></div>
+                <div id="messengerContacts" class="wa-contacts-list" style="flex:1;overflow:auto;padding:8px;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);" aria-label="Contacts list">No contacts</div>
+              </aside>
+
+              <!-- RIGHT: chat area -->
+              <main class="wa-chat" style="flex:1;display:flex;flex-direction:column">
+                <div class="wa-chat-header" style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.02)">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <button id="waBackBtn" title="Back to chats" class="callAction" style="display:none;padding:6px 8px">◀</button>
+                    <div id="chatAvatar" style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#062b3a,#083047);display:flex;align-items:center;justify-content:center;font-weight:700;color:#c7eaf0">?</div>
+                    <div>
+                      <div id="chatWith" style="font-weight:700">No chat selected</div>
+                      <div id="chatStatus" class="small muted">offline</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <button id="chatClearBtn" title="Clear chat" class="callAction" style="padding:6px 8px">🗑️</button>
+                    <button id="chatFullBtn" title="Fullscreen chat" class="callAction" style="padding:6px 8px">⬜</button>
+                  </div>
+                </div>
+
+                <div id="messagesList" class="wa-messages" style="flex:1;overflow:auto;padding:16px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);"> 
+                  <div class="small muted">Select a contact to start chatting</div>
+                </div>
+
+                <div class="wa-input-bar" style="padding:10px;border-top:1px solid rgba(255,255,255,0.02);display:flex;gap:8px;align-items:center">
+                  <button id="waAttach" title="Attach" class="callAction" style="padding:8px 10px">📎</button>
+                  <input id="msgInput" placeholder="Type a message" style="flex:1;padding:10px;border-radius:20px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit" />
+                  <button id="sendMsgBtn" class="callAction" style="background:linear-gradient(180deg,#06b6d4,#0891b2);padding:10px 14px;border-radius:20px">Send</button>
+                </div>
+              </main>
+            </div>
+          </section>
+
           <section id="pageSettings" class="page" style="display:none;padding:12px">
             <h3>Settings</h3>
             <div class="small muted">Placeholder settings page. Add options here.</div>
@@ -393,7 +495,7 @@
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
-import { getDatabase, ref, set, onValue, push, update, child, get, runTransaction, onDisconnect } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
+import { getDatabase, ref, set, onValue, off, push, update, child, get, runTransaction, onDisconnect } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js';
 
 // Use the same Firebase config as your host page
 const firebaseConfig = {
@@ -463,7 +565,8 @@ const pages = {
   dial: document.getElementById('pageDialer'),
   history: document.getElementById('pageHistory'),
   profile: document.getElementById('pageProfile'),
-  settings: document.getElementById('pageSettings')
+  settings: document.getElementById('pageSettings'),
+  messenger: document.getElementById('pageMessenger')
 };
 const tabHome = document.getElementById('tabHome');
 const tabDial = document.getElementById('tabDial');
@@ -678,7 +781,7 @@ function navigateTo(pageId, push=true){
     }
   }catch(e){ console.warn('navigateTo dial reset failed', e); }
   // title
-  const titleMap = { home: 'Home', contacts: 'Contacts', dial: 'Call', history: 'Call History', profile: 'Profile', settings: 'Settings' };
+  const titleMap = { home: 'Home', contacts: 'Contacts', dial: 'Call', history: 'Call History', profile: 'Profile', settings: 'Settings', messenger: 'Messenger' };
   pageTitleEl.textContent = titleMap[key] || 'Dialer';
   // manage nav stack
   if(push){ navStack.push(key); }
@@ -811,9 +914,10 @@ document.querySelectorAll('.appIcon').forEach(btn=>{
     else if(t === 'settings') {
       settingsModal.style.display = 'flex';
     }
-    else if(t === 'messenger') {
-      busyModal.style.display = 'flex';
-    }
+      else if(t === 'messenger') {
+        // open the messenger page (simple global chat)
+        navigateTo('messenger');
+      }
   };
 });
 
@@ -1004,6 +1108,7 @@ async function registerUser(rawName, password){
   await onDisconnect(myRef).update({ online: false, lastSeen: Date.now() });
   startListeningUsers(); startListeningSessions(); startListeningContacts();
   startListeningLogs();
+  try{ startListeningPrivateRoot(); }catch(e){}
   if ('Notification' in window) { Notification.requestPermission(); }
     return true;
   }catch(e){ console.error('register failed', e); alert('Register failed: ' + e); }
@@ -1081,6 +1186,206 @@ function renderPhonebook(){
   }
 }
 
+// --- Messenger: simple global chat room ---
+// --- Messenger: private one-to-one chats ---
+let usersCache = {};
+let selectedChatPeer = null;
+let selectedChatId = null;
+let privateMsgsRef = null;
+let privateMsgsCallback = null;
+let unreadCounts = {}; // chatId -> number
+
+function startListeningUsers(){
+  const usersRef = ref(db, 'users');
+  onValue(usersRef, (snap)=>{
+    const val = snap.val() || {};
+    usersCache = val;
+    try{ renderUsers(Object.values(val)); }catch(e){}
+    try{ buildMessengerContacts(); }catch(e){}
+    try{ restoreUnreadCounts(); updateAllContactBadges(); updateGlobalBadge(); }catch(e){}
+  });
+}
+
+function buildMessengerContacts(){
+  const cont = document.getElementById('messengerContacts');
+  if(!cont) return;
+  cont.innerHTML = '';
+  const arr = Object.values(usersCache || {}).filter(u=>u && u.name).sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+  for(const u of arr){
+    if(u.name === myName) continue;
+    const btn = document.createElement('button');
+    btn.className = 'messengerContactBtn';
+    btn.dataset.name = u.name;
+    // show only username (no number) with avatar and small meta (WhatsApp-like)
+    const avatar = document.createElement('div'); avatar.className = 'avatar-small'; avatar.textContent = (u.name||'?').charAt(0).toUpperCase();
+    const meta = document.createElement('div'); meta.className = 'contact-meta';
+    const nm = document.createElement('div'); nm.className = 'contact-name'; nm.textContent = u.name;
+    const sub = document.createElement('div'); sub.className = 'contact-sub'; sub.textContent = u.online ? 'Online' : 'Offline';
+    meta.appendChild(nm); meta.appendChild(sub);
+    btn.appendChild(avatar); btn.appendChild(meta);
+    // unread badge placeholder
+    const badge = document.createElement('span'); badge.className = 'contact-badge'; badge.style.display = 'none'; badge.textContent = '0'; badge.style.marginLeft = 'auto'; btn.appendChild(badge);
+    btn.onclick = ()=> openChatWith(u.name);
+    cont.appendChild(btn);
+  }
+  if(cont.children.length === 0) cont.innerHTML = '<div class="small muted">No contacts</div>';
+}
+
+function getChatId(peerName){
+  const a = (getMyKey() || '').toString();
+  const b = (peerName||'').replace(/[.#$\[\]]/g,'_');
+  return [a,b].sort().join('_');
+}
+
+function openChatWith(peerName){
+  if(!peerName) return;
+  selectedChatPeer = peerName;
+  selectedChatId = getChatId(peerName);
+  document.getElementById('chatWith').textContent = peerName;
+  // unsubscribe previous
+  try{ if(privateMsgsRef && privateMsgsCallback) off(privateMsgsRef, 'value', privateMsgsCallback); }catch(e){}
+  privateMsgsRef = ref(db, 'messages/private/' + selectedChatId);
+  privateMsgsCallback = (snap)=>{ renderPrivateMessages(snap.val() || {}); };
+  onValue(privateMsgsRef, privateMsgsCallback);
+  // highlight selected contact button
+  try{
+    document.querySelectorAll('#messengerContacts button.messengerContactBtn').forEach(b=> b.classList.remove('selected'));
+    const sel = document.querySelector(`#messengerContacts button.messengerContactBtn[data-name="${peerName}"]`);
+    if(sel) sel.classList.add('selected');
+  }catch(e){}
+  
+  // set avatar initial and status
+  try{ const av = document.getElementById('chatAvatar'); if(av) av.textContent = (peerName||'?').charAt(0).toUpperCase(); }catch(e){}
+  try{ const st = document.getElementById('chatStatus'); if(st){ const u = usersCache && usersCache[peerName.replace(/[.#$\[\]]/g,'_')]; st.textContent = u && u.online ? 'Online' : 'Offline'; } }catch(e){}
+  // on small screens hide contacts column when chat opened (WhatsApp mobile behaviour)
+  try{ if(window.innerWidth <= 640){ document.querySelector('.wa-contacts').style.display = 'none'; const back = document.getElementById('waBackBtn'); if(back) back.style.display = 'inline-block'; } }catch(e){}
+  // clear unread count for this chat
+  try{ if(selectedChatId){ unreadCounts[selectedChatId] = 0; updateContactBadge(selectedChatId); updateGlobalBadge(); localStorage.setItem('unreadCounts_'+(getMyKey()||''), JSON.stringify(unreadCounts)); } }catch(e){}
+}
+
+function renderPrivateMessages(messages){
+  const list = document.getElementById('messagesList');
+  if(!list) return;
+  list.innerHTML = '';
+  const keys = Object.keys(messages || {});
+  if(keys.length === 0){ list.innerHTML = '<div class="small muted">No messages yet</div>'; return; }
+  const items = keys.map(k=> Object.assign({ _id: k }, messages[k])).sort((a,b)=> (a.ts||0) - (b.ts||0));
+  // apply clearedAt filter (local clear chat) if set
+  const clearedAt = getClearedTs(selectedChatId);
+  for(const it of items){
+    if(clearedAt && it.ts && it.ts <= clearedAt) continue;
+  const row = document.createElement('div');
+  row.className = 'msg-row';
+  row.style.marginBottom='8px';
+    const mine = (it.from === myName);
+    if(mine){ row.style.justifyContent='flex-end'; }
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble ' + (mine ? 'mine' : 'their');
+  bubble.textContent = it.text || '';
+  const meta = document.createElement('div'); meta.className='msg-meta'; meta.textContent = it.ts ? new Date(it.ts).toLocaleTimeString() : '';
+  const wrapper = document.createElement('div'); wrapper.style.display='flex'; wrapper.style.flexDirection='column'; wrapper.appendChild(bubble); wrapper.appendChild(meta);
+    row.appendChild(wrapper);
+    list.appendChild(row);
+  }
+  try{ list.scrollTop = list.scrollHeight; }catch(e){}
+}
+
+function getClearedTs(chatId){
+  try{
+    if(!chatId) return null;
+    const key = 'cleared_' + (getMyKey() || '') + '_' + chatId;
+    const val = localStorage.getItem(key);
+    return val ? Number(val) : null;
+  }catch(e){ return null; }
+}
+
+async function sendPrivateMessage(){
+  const inp = document.getElementById('msgInput');
+  if(!inp) return;
+  const txt = (inp.value||'').trim();
+  if(!txt) return;
+  if(!myName) return alert('Sign in to send messages');
+  if(!selectedChatPeer || !selectedChatId) return alert('Select a contact to chat with');
+  try{
+    const payload = { from: myName, to: selectedChatPeer, text: txt, ts: Date.now() };
+    const p = push(ref(db, 'messages/private/' + selectedChatId));
+    await set(p, payload);
+    inp.value = '';
+    // after sending in current chat, reset unread and update badges
+    try{ if(selectedChatId){ unreadCounts[selectedChatId] = 0; updateContactBadge(selectedChatId); updateGlobalBadge(); localStorage.setItem('unreadCounts_'+(getMyKey()||''), JSON.stringify(unreadCounts)); } }catch(e){}
+  }catch(e){ console.error('sendPrivateMessage failed', e); alert('Message failed to send'); }
+}
+
+// wire send button and Enter key for private chat
+document.addEventListener('click', (e)=>{
+  if(e.target && e.target.id === 'sendMsgBtn'){ sendPrivateMessage(); }
+  // back button on mobile
+  if(e.target && e.target.id === 'waBackBtn'){ try{ document.querySelector('.wa-contacts').style.display = ''; e.target.style.display='none'; }catch(e){} }
+});
+document.addEventListener('keydown', (e)=>{
+  const active = document.activeElement;
+  if(active && active.id === 'msgInput' && e.key === 'Enter'){
+    e.preventDefault(); sendPrivateMessage();
+  }
+});
+
+// disable send when input empty and keep send visible when typing
+const waInput = document.getElementById('msgInput');
+const waSend = document.getElementById('sendMsgBtn');
+if(waInput && waSend){
+  waSend.disabled = true;
+  waInput.addEventListener('input', ()=>{ waSend.disabled = !(waInput.value||'').trim(); });
+}
+
+// Chat window controls: fullscreen
+let chatFullscreen = false;
+let messengerOriginalParent = null;
+let messengerOriginalNextSibling = null;
+function toggleChatFullscreen(){
+  const pm = document.getElementById('pageMessenger'); if(!pm) return;
+  chatFullscreen = !chatFullscreen;
+  if(chatFullscreen){
+    // store original position
+    messengerOriginalParent = pm.parentElement;
+    messengerOriginalNextSibling = pm.nextSibling;
+    // move to body so it can overlay everything
+    document.body.appendChild(pm);
+    pm.classList.add('pm-fullscreen');
+    // hide contacts column inside fullscreen
+    try{ const cont = document.getElementById('messengerContacts'); if(cont) cont.style.display = 'none'; }catch(e){}
+    try{ const sys = document.querySelector('.sysBar'); if(sys) sys.style.display='none'; }catch(e){}
+    try{ document.body.style.overflow = 'hidden'; }catch(e){}
+  } else {
+    // restore
+    pm.classList.remove('pm-fullscreen');
+    try{ const cont = document.getElementById('messengerContacts'); if(cont) cont.style.display = ''; }catch(e){}
+    try{ const sys = document.querySelector('.sysBar'); if(sys) sys.style.display='flex'; }catch(e){}
+    try{ document.body.style.overflow = ''; }catch(e){}
+    // move back to original parent position
+    try{
+      if(messengerOriginalParent){
+        if(messengerOriginalNextSibling) messengerOriginalParent.insertBefore(pm, messengerOriginalNextSibling);
+        else messengerOriginalParent.appendChild(pm);
+      }
+    }catch(e){ console.warn('restore messenger position failed', e); }
+  }
+}
+// wire header buttons (elements exist in DOM when script runs)
+try{
+  const clearB = document.getElementById('chatClearBtn'); if(clearB) clearB.onclick = async ()=>{
+    if(!selectedChatId) return alert('No chat selected');
+    if(!confirm('Clear messages in this chat from your view? This will hide existing messages for you locally.')) return;
+    const key = 'cleared_' + (getMyKey() || '') + '_' + selectedChatId;
+    localStorage.setItem(key, String(Date.now()));
+    // reset unread and UI
+    unreadCounts[selectedChatId] = 0; updateContactBadge(selectedChatId); updateGlobalBadge(); localStorage.setItem('unreadCounts_'+(getMyKey()||''), JSON.stringify(unreadCounts));
+    // re-render chat
+    try{ renderPrivateMessages((await get(ref(db, 'messages/private/' + selectedChatId))).val() || {}); }catch(e){}
+  };
+  const fullB = document.getElementById('chatFullBtn'); if(fullB) fullB.onclick = toggleChatFullscreen;
+}catch(e){}
+
+
 // Contact call helper
 let contactCallTarget = null;
 function showContactCallOptions(number, label){
@@ -1139,13 +1444,6 @@ signOutBtn.onclick = async ()=>{
 };
 
 // --- Users list ---
-function startListeningUsers(){
-  const usersRef = ref(db, 'users');
-  onValue(usersRef, (snap)=>{
-    const val = snap.val() || {};
-    renderUsers(Object.values(val));
-  });
-}
 
 function renderUsers(users){
   usersDiv.innerHTML = '';
@@ -1182,6 +1480,89 @@ function renderUsers(users){
     usersDiv.appendChild(row);
   }
 }
+
+function updateContactBadgeForName(name){
+  try{
+    const key = getChatId(name);
+    updateContactBadge(key);
+  }catch(e){}
+}
+
+function updateContactBadge(chatId){
+  try{
+    if(!chatId) return;
+    const cont = document.getElementById('messengerContacts');
+    if(!cont) return;
+    // find button by data-name matching either peer name
+    const btn = Array.from(cont.querySelectorAll('button.messengerContactBtn')).find(b=> getChatId(b.dataset.name) === chatId);
+    if(!btn) return;
+    const badge = btn.querySelector('.contact-badge');
+    const n = unreadCounts[chatId] || 0;
+    if(badge){ if(n>0){ badge.style.display='inline-flex'; badge.textContent = n>99 ? '99+' : String(n); } else { badge.style.display='none'; } }
+  }catch(e){ console.warn('updateContactBadge failed', e); }
+}
+
+function updateAllContactBadges(){
+  try{ Object.keys(unreadCounts||{}).forEach(k=> updateContactBadge(k)); }catch(e){}
+}
+
+function updateGlobalBadge(){
+  try{
+    const total = Object.values(unreadCounts||{}).reduce((s,v)=> s + (Number(v)||0), 0);
+    const appBtn = Array.from(document.querySelectorAll('.appIcon')).find(b=> b.dataset && b.dataset.target === 'messenger');
+    if(!appBtn) return;
+    let gb = appBtn.querySelector('.messenger-global-badge');
+    if(total > 0){ if(!gb){ gb = document.createElement('span'); gb.className='messenger-global-badge'; appBtn.style.position='relative'; appBtn.appendChild(gb); } gb.textContent = total>99 ? '99+' : String(total); }
+    else { if(gb) gb.remove(); }
+  }catch(e){ console.warn('updateGlobalBadge failed', e); }
+}
+
+function restoreUnreadCounts(){
+  try{
+    const key = 'unreadCounts_'+(getMyKey()||'');
+    const raw = localStorage.getItem(key);
+    if(raw) unreadCounts = JSON.parse(raw) || {};
+    else unreadCounts = {};
+  }catch(e){ unreadCounts = {}; }
+}
+
+// seen timestamps per chat to compute unread counts
+let seenTimestamps = {};
+function restoreSeenTimestamps(){
+  try{ const k = 'seen_'+(getMyKey()||''); const raw = localStorage.getItem(k); if(raw) seenTimestamps = JSON.parse(raw) || {}; else seenTimestamps = {}; }catch(e){ seenTimestamps = {}; }
+}
+function saveSeenTimestamps(){ try{ localStorage.setItem('seen_'+(getMyKey()||''), JSON.stringify(seenTimestamps || {})); }catch(e){} }
+
+// Listen to root of private messages to compute per-chat unread counts
+function startListeningPrivateRoot(){
+  try{
+    restoreSeenTimestamps(); restoreUnreadCounts();
+    const rootRef = ref(db, 'messages/private');
+    onValue(rootRef, (snap)=>{
+      const val = snap.val() || {};
+      // for each chatId compute last ts and unread count
+      Object.keys(val).forEach(chatId => {
+        try{
+          const msgs = val[chatId] || {};
+          // compute max ts and count unread
+          let maxTs = 0; let unread = 0; let arr = Object.values(msgs || {});
+          arr.forEach(m => { if(m && m.ts){ if(m.ts > maxTs) maxTs = m.ts; } });
+          const clearedAt = getClearedTs(chatId);
+          const seen = seenTimestamps[chatId] || 0;
+          arr.forEach(m => { if(m && m.ts){ const effectiveSeen = Math.max(seen || 0, clearedAt || 0); if(m.ts > effectiveSeen){ unread += 1; } } });
+          // if chat is currently open, mark seen and unread=0
+          if(selectedChatId === chatId){ seenTimestamps[chatId] = maxTs; unread = 0; }
+          unreadCounts[chatId] = unread;
+        }catch(e){ console.warn('privateRoot process failed for', chatId, e); }
+      });
+  // update UI
+  updateAllContactBadges(); updateGlobalBadge();
+  try{ if(window.updateNotifBadge) window.updateNotifBadge(); }catch(e){}
+  saveSeenTimestamps(); localStorage.setItem('unreadCounts_'+(getMyKey()||''), JSON.stringify(unreadCounts));
+    });
+  }catch(e){ console.warn('startListeningPrivateRoot failed', e); }
+}
+
 
 // --- Sessions (signaling) ---
 function startListeningSessions(){
@@ -1727,6 +2108,247 @@ function installApp() {
     alert('App is already installed or install prompt not available.');
   }
 }
+</script>
+
+<!-- Notification & unread-count client logic -->
+<script>
+// Simple client-side notification / unread counter system
+(() => {
+  const notifBadge = document.getElementById('notifBadge');
+  const notifBell = document.getElementById('notifBell');
+  const messagesList = document.getElementById('messagesList');
+  const messengerContacts = document.getElementById('messengerContacts');
+  const chatWithEl = document.getElementById('chatWith');
+
+  const state = {
+    unreadTotal: 0,
+    unreadByContact: {}, // contactId -> count
+  };
+
+  function updateNotifBadge(){
+    if(!notifBadge) return;
+    // prefer DB-driven unreadCounts if available
+    let n = 0;
+    try{ if(typeof unreadCounts !== 'undefined' && unreadCounts){ n = Object.values(unreadCounts).reduce((a,b)=> a + (Number(b)||0), 0); } else if(state && state.unreadTotal) { n = state.unreadTotal; } }catch(e){ n = (state && state.unreadTotal) || 0; }
+    if(n > 0){ notifBadge.style.display = 'inline-flex'; notifBadge.textContent = n > 99 ? '99+' : String(n); }
+    else notifBadge.style.display = 'none';
+  }
+
+  async function requestNotificationPermission(){
+    if(!('Notification' in window)) return;
+    if(Notification.permission === 'default'){
+      try{ await Notification.requestPermission(); }catch(e){ /* ignore */ }
+    }
+  }
+
+  function showBrowserNotif(title, body){
+    try{
+      if(window.showNotification) { // service worker helper from page
+        showNotification(title, { body, icon: undefined });
+      } else if('Notification' in window && Notification.permission === 'granted'){
+        new Notification(title, { body });
+      }
+    }catch(e){ console.warn('notify failed', e); }
+  }
+
+  // Call this to simulate an incoming message for testing
+  window.simulateIncoming = async function(fromId = 'alice', fromDisplay = 'Alice', text = 'Hello!'){
+    // If DB is available, write to messages/private so listeners compute unread counts
+    try{
+      if(typeof db !== 'undefined' && typeof ref === 'function' && typeof push === 'function' && typeof set === 'function'){
+        const myKey = (typeof getMyKey === 'function') ? getMyKey() : 'local';
+        // simulate message written under a two-way chat id (sorted ids)
+        const chatId = fromId === myKey ? myKey + '_' + fromId : [fromId, myKey].sort().join('_');
+        const msgRef = push(ref(db, 'messages/private/' + chatId));
+        await set(msgRef, { from: fromId, fromDisplay: fromDisplay, text: text, ts: Date.now() });
+        return;
+      }
+    }catch(e){ console.warn('simulateIncoming write failed', e); }
+    // fallback: update UI locally
+    handleIncomingMessage(fromId, fromDisplay, text);
+  };
+
+  function openChat(contactId, displayName){
+    // set header
+    try{ if(chatWithEl) chatWithEl.textContent = displayName || contactId; }catch(e){}
+    try{ const chatAvatar = document.getElementById('chatAvatar'); if(chatAvatar) chatAvatar.textContent = (displayName||'?').charAt(0).toUpperCase(); }catch(e){}
+    // show only messages for this contact
+    if(messagesList){
+      const rows = messagesList.querySelectorAll('.msg-row');
+      rows.forEach(r => { r.style.display = (r.dataset.from === contactId) ? '' : 'none'; });
+      // auto-scroll
+      messagesList.scrollTop = messagesList.scrollHeight;
+    }
+    // mark as read locally and in DB
+    try{
+      // mark as seen locally so UI updates immediately
+      seenTimestamps[contactId] = Date.now();
+      saveSeenTimestamps();
+      // clear computed unreadCounts for this chat and update UI (if function present)
+      try{ if(typeof updateAllContactBadges === 'function') updateAllContactBadges(); if(typeof updateGlobalBadge === 'function') updateGlobalBadge(); }catch(e){}
+      // also write seen timestamp to DB so other clients know we've read messages
+      try{
+        const myKey = (typeof getMyKey === 'function') ? getMyKey() : null;
+        if(myKey && typeof ref === 'function' && typeof set === 'function' && typeof db !== 'undefined'){
+          set(ref(db, 'messages/seen/' + myKey + '/' + contactId), Date.now()).catch(()=>{});
+        }
+      }catch(e){ console.warn('failed to write seen ts to db', e); }
+    }catch(e){ console.warn('openChat mark read failed', e); }
+  }
+
+  function ensureContactElement(contactId, displayName){
+    if(!messengerContacts) return null;
+    let btn = messengerContacts.querySelector('[data-contact-id="' + contactId + '"]');
+    if(btn) return btn;
+    // create a simple contact button entry
+    btn = document.createElement('button');
+    btn.className = 'messengerContactBtn';
+    btn.setAttribute('data-contact-id', contactId);
+    btn.style.display = 'flex'; btn.style.alignItems='center'; btn.style.justifyContent='space-between'; btn.style.gap='8px'; btn.style.padding='8px'; btn.style.width='100%'; btn.style.border='0'; btn.style.background='transparent'; btn.style.color='inherit'; btn.style.borderRadius='8px';
+    const left = document.createElement('div'); left.style.display='flex'; left.style.gap='8px'; left.style.alignItems='center';
+    const avatar = document.createElement('div'); avatar.className='avatar-small'; avatar.textContent = (displayName||contactId).charAt(0).toUpperCase(); avatar.style.width='44px'; avatar.style.height='44px'; avatar.style.borderRadius='50%'; avatar.style.display='flex'; avatar.style.alignItems='center'; avatar.style.justifyContent='center'; avatar.style.fontWeight='700';
+    const meta = document.createElement('div'); meta.className='contact-meta'; const name = document.createElement('div'); name.className='contact-name'; name.textContent = displayName || contactId; const sub = document.createElement('div'); sub.className='contact-sub muted'; sub.textContent = 'New message'; meta.appendChild(name); meta.appendChild(sub);
+    left.appendChild(avatar); left.appendChild(meta);
+    btn.appendChild(left);
+    // badge placeholder
+    const right = document.createElement('div'); right.style.display='flex'; right.style.alignItems='center'; right.style.gap='8px'; btn.appendChild(right);
+    messengerContacts.insertBefore(btn, messengerContacts.firstChild);
+    // click opens chat
+    btn.addEventListener('click', ()=> openChat(contactId, displayName));
+    return btn;
+  }
+
+  function handleIncomingMessage(fromId, fromDisplay, text){
+    // Create message DOM (their message)
+    if(messagesList){
+      const row = document.createElement('div'); row.className = 'msg-row'; row.dataset.from = fromId; row.dataset.unread = 'true';
+      const bubble = document.createElement('div'); bubble.className = 'msg-bubble their'; bubble.textContent = text;
+      const meta = document.createElement('div'); meta.className = 'msg-meta'; meta.textContent = `${fromDisplay} • ${new Date().toLocaleTimeString()}`;
+      row.appendChild(bubble); row.appendChild(meta);
+      messagesList.appendChild(row);
+      // auto-scroll
+      messagesList.scrollTop = messagesList.scrollHeight;
+    }
+
+    // increment unread counters (unless the chat is currently open with this user)
+    const currentChatName = chatWithEl && chatWithEl.textContent && chatWithEl.textContent.trim();
+    if(currentChatName !== fromDisplay){
+      state.unreadByContact[fromId] = (state.unreadByContact[fromId] || 0) + 1;
+      state.unreadTotal = Object.values(state.unreadByContact).reduce((a,b) => a + b, 0);
+      updateNotifBadge();
+      // ensure contact exists and update badge
+      try{
+        let btn = ensureContactElement(fromId, fromDisplay);
+        if(btn){ let b = btn.querySelector('.contact-badge'); if(!b){ b = document.createElement('span'); b.className='contact-badge'; btn.appendChild(b); } b.textContent = state.unreadByContact[fromId]; }
+      }catch(e){}
+      // show browser notification
+      showBrowserNotif(`New message from ${fromDisplay}`, text);
+    } else {
+      // message arrived in the currently visible chat -> mark appended as read (no badge)
+      if(messagesList){ const rows = messagesList.querySelectorAll('.msg-row'); rows.forEach(r => { if(r.dataset.from === fromId) r.dataset.unread='false'; }); }
+    }
+  }
+
+  function markChatRead(contactId){
+    if(!contactId) return;
+    try{
+      // update local seen timestamp and persist
+      seenTimestamps[contactId] = Date.now();
+      saveSeenTimestamps();
+      // also clear unreadCounts entry if present
+      try{ if(typeof unreadCounts !== 'undefined' && unreadCounts && unreadCounts[contactId]){ unreadCounts[contactId] = 0; } }catch(e){}
+      // update notifications UI using existing helpers
+      try{ if(typeof updateContactBadge === 'function') updateContactBadge(contactId); if(typeof updateGlobalBadge === 'function') updateGlobalBadge(); }catch(e){}
+      // remove badge from contact UI (fallback)
+      try{ const btn = messengerContacts && messengerContacts.querySelector('[data-contact-id="' + contactId + '"]'); if(btn){ const b = btn.querySelector('.contact-badge'); if(b) b.remove(); } }catch(e){}
+      // mark messages in the list as read
+      if(messagesList){ const rows = messagesList.querySelectorAll('.msg-row'); rows.forEach(r=>{ if(r.dataset.from === contactId) r.dataset.unread='false'; }); }
+      // write seen timestamp to DB so other clients know messages were read
+      try{
+        const myKey = (typeof getMyKey === 'function') ? getMyKey() : null;
+        if(myKey && typeof ref === 'function' && typeof set === 'function' && typeof db !== 'undefined'){
+          set(ref(db, 'messages/seen/' + myKey + '/' + contactId), Date.now()).catch(()=>{});
+        }
+      }catch(e){ console.warn('failed to write seen ts to db', e); }
+    }catch(e){ console.warn('markChatRead failed', e); }
+  }
+
+  function markAllRead(){
+    try{
+      // update local state
+      seenTimestamps = seenTimestamps || {};
+      const now = Date.now();
+      // mark all as seen locally
+      Object.keys(unreadCounts || {}).forEach(k => { seenTimestamps[k] = now; if(unreadCounts) unreadCounts[k] = 0; });
+      saveSeenTimestamps();
+      // update UI
+      try{ if(typeof updateAllContactBadges === 'function') updateAllContactBadges(); if(typeof updateGlobalBadge === 'function') updateGlobalBadge(); }catch(e){}
+      try{ messengerContacts && messengerContacts.querySelectorAll('.contact-badge').forEach(b=>b.remove()); }catch(e){}
+      if(messagesList){ messagesList.querySelectorAll('.msg-row').forEach(r=> r.dataset.unread='false'); }
+      // write seen timestamps to DB for each chat so other clients are notified
+      try{
+        const myKey = (typeof getMyKey === 'function') ? getMyKey() : null;
+        if(myKey && typeof ref === 'function' && typeof set === 'function' && typeof db !== 'undefined'){
+          const writePromises = Object.keys(seenTimestamps || {}).map(cid => set(ref(db, 'messages/seen/' + myKey + '/' + cid), seenTimestamps[cid]));
+          Promise.all(writePromises).catch(()=>{});
+        }
+      }catch(e){ console.warn('failed to write seen timestamps to db', e); }
+    }catch(e){ console.warn('markAllRead failed', e); }
+  }
+
+  // notification panel behavior
+  const notifPanel = document.getElementById('notifPanel');
+  const notifList = document.getElementById('notifList');
+  const notifClearAll = document.getElementById('notifClearAll');
+
+  function renderNotifPanel(){
+    if(!notifList) return;
+    // prefer server-computed unreadCounts if available
+    const source = (typeof unreadCounts !== 'undefined' && unreadCounts) ? unreadCounts : (state && state.unreadByContact ? state.unreadByContact : {});
+    const entries = Object.keys(source || {});
+    if(entries.length === 0){ notifList.textContent = 'No notifications'; return; }
+    notifList.innerHTML = '';
+    for(const id of entries){
+      const count = source[id] || 0;
+      const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='8px'; row.style.borderBottom='1px solid rgba(255,255,255,0.03)';
+      const left = document.createElement('div'); left.textContent = id; left.style.fontWeight='600';
+      const right = document.createElement('div'); right.style.display='flex'; right.style.alignItems='center'; right.style.gap='8px';
+      const c = document.createElement('span'); c.className='contact-badge'; c.textContent = count;
+      const openBtn = document.createElement('button'); openBtn.textContent = 'Open'; openBtn.style.border=0; openBtn.style.background='transparent'; openBtn.style.color='inherit'; openBtn.style.cursor='pointer';
+      const _openHandler = function(){
+        if(messengerContacts){ try{ document.querySelector("[data-target='messenger']").click(); }catch(e){} }
+        openChat(id, id);
+        if(notifPanel) notifPanel.style.display='none';
+      };
+      openBtn.addEventListener('click', _openHandler);
+      right.appendChild(c); right.appendChild(openBtn);
+      row.appendChild(left); row.appendChild(right);
+      notifList.appendChild(row);
+    }
+  }
+
+  if(notifBell){ notifBell.addEventListener('click', ()=>{ if(!notifPanel) return; notifPanel.style.display = (notifPanel.style.display === 'none' || !notifPanel.style.display) ? 'block' : 'none'; renderNotifPanel(); }); }
+  if(notifClearAll){ notifClearAll.addEventListener('click', ()=>{ markAllRead(); renderNotifPanel(); if(notifPanel) notifPanel.style.display='none'; }); }
+
+  // listen for clicks on contacts to mark that contact read when opened
+  if(messengerContacts){
+    messengerContacts.addEventListener('click', (ev)=>{
+      const btn = ev.target.closest('.messengerContactBtn');
+      if(!btn) return;
+      const cid = btn.dataset.contactId || btn.getAttribute('data-contact-id') || btn.textContent.trim();
+      if(cid) markChatRead(cid);
+    });
+  }
+
+  // Request permission on load
+  requestNotificationPermission().catch(()=>{});
+
+  // expose small API for other scripts
+  window.__appNotifications = { handleIncomingMessage, markChatRead, markAllRead, state };
+  // expose badge updater so DB-driven listeners can call it
+  try{ window.updateNotifBadge = updateNotifBadge; }catch(e){}
+
+})();
 </script>
 </body>
 </html>
