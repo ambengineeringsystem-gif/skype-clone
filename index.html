@@ -378,6 +378,70 @@ const tabHome = document.getElementById('tabHome');
 const tabDial = document.getElementById('tabDial');
 const tabHistory = document.getElementById('tabHistory');
 const tabProfile = document.getElementById('tabProfile');
+let inCall = false;
+
+function enterCallMode() {
+  inCall = true;
+  const header = document.querySelector('header');
+  if (header) header.style.display = 'none';
+  const nav = document.querySelector('nav');
+  if (nav) nav.style.display = 'none';
+  // Hide all pages
+  Object.values(pages).forEach(p => { if (p) p.style.display = 'none'; });
+  // Hide panels
+  const leftPanel = document.getElementById('leftPanel');
+  if (leftPanel) leftPanel.style.display = 'none';
+  const rightPanel = document.getElementById('rightPanel');
+  if (rightPanel) rightPanel.style.display = 'none';
+  // Remove app padding
+  const app = document.querySelector('.app');
+  if (app) app.style.padding = '0';
+  // Prevent scrolling
+  document.body.style.overflow = 'hidden';
+  // Show and fullscreen videoStage
+  const videoStage = document.getElementById('videoStage');
+  if (videoStage) {
+    videoStage.style.display = 'flex';
+    videoStage.style.position = 'fixed';
+    videoStage.style.top = '0';
+    videoStage.style.left = '0';
+    videoStage.style.width = '100vw';
+    videoStage.style.height = '100vh';
+    videoStage.style.zIndex = '1000';
+  }
+}
+
+function exitCallMode() {
+  inCall = false;
+  const header = document.querySelector('header');
+  if (header) header.style.display = 'block';
+  const nav = document.querySelector('nav');
+  if (nav) nav.style.display = 'block';
+  // Show current page
+  const currentPage = navStack.length > 0 ? navStack[navStack.length - 1] : 'home';
+  navigateTo(currentPage, false);
+  // Show panels
+  const leftPanel = document.getElementById('leftPanel');
+  if (leftPanel) leftPanel.style.display = 'block';
+  const rightPanel = document.getElementById('rightPanel');
+  if (rightPanel) rightPanel.style.display = 'block';
+  // Restore app padding
+  const app = document.querySelector('.app');
+  if (app) app.style.padding = '';
+  // Restore scrolling
+  document.body.style.overflow = 'auto';
+  // Reset videoStage
+  const videoStage = document.getElementById('videoStage');
+  if (videoStage) {
+    videoStage.style.display = 'none';
+    videoStage.style.position = '';
+    videoStage.style.top = '';
+    videoStage.style.left = '';
+    videoStage.style.width = '';
+    videoStage.style.height = '';
+    videoStage.style.zIndex = '';
+  }
+}
 let navStack = [];
 
 function navigateTo(pageId, push=true){
@@ -933,6 +997,7 @@ async function acceptIncoming(isVideo){
     if(saveCallBtn) saveCallBtn.style.display = 'inline-block';
   }catch(e){ console.error('accept failed', e); alert('Failed to accept call: ' + e.message + '. Please try again.'); cleanupCall(); }
   closeModal();
+  enterCallMode();
 }
 
 function closeModal(){ 
@@ -1004,7 +1069,6 @@ async function initiateCall(targetName, isVideo){
       const val = snap.val();
       if(!val) return;
       if(val.answer && pc && !pc.remoteDescription){
-        clearTimeout(timeoutId);
         closeDialingModal();
         try{
           const answer = (typeof val.answer === 'string') ? JSON.parse(val.answer) : val.answer;
@@ -1015,17 +1079,16 @@ async function initiateCall(targetName, isVideo){
               // mark call started
               callStartTime = Date.now(); savedThisCall = false;
               if(saveCallBtn) saveCallBtn.style.display = 'inline-block';
+              enterCallMode();
         }catch(e){ console.error('apply answer', e); alert('Failed to connect call. Please try again.'); cleanupCall(); }
       }
       if(val.status === 'rejected'){
-        clearTimeout(timeoutId);
         closeDialingModal();
         rejectionMessage.textContent = `${targetName} declined the call`;
         rejectionModal.style.display = 'flex';
         cleanupCall();
       }
       if(val.status === 'ended'){
-        clearTimeout(timeoutId);
         closeDialingModal();
         callStatus.textContent = `Call ended`;
         cleanupCall();
@@ -1242,6 +1305,8 @@ async function cleanupCall(){
   if(saveCallBtn) saveCallBtn.style.display = 'none';
   // reset call state
   currentCallMeta = null; callStartTime = null; savedThisCall = false;
+  // exit call mode
+  exitCallMode();
   // return to idle UI
   setIdle(true);
   // close any open modals
