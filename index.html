@@ -398,16 +398,36 @@ function enterCallMode() {
   if (app) app.style.padding = '0';
   // Prevent scrolling
   document.body.style.overflow = 'hidden';
-  // Show and fullscreen videoStage
-  const videoStage = document.getElementById('videoStage');
+  // Hide system nav (back/home) while in call
+  const sysBar = document.querySelector('.sysBar');
+  if (sysBar) sysBar.style.display = 'none';
+  const navBackBtnEl = document.getElementById('navBack');
+  const navHomeBtnEl = document.getElementById('navHome');
+  if (navBackBtnEl) navBackBtnEl.style.display = 'none';
+  if (navHomeBtnEl) navHomeBtnEl.style.display = 'none';
+  // Show and fullscreen video stage (uses id 'stage')
+  const videoStage = document.getElementById('stage') || document.querySelector('.videoStage');
   if (videoStage) {
+    // move element to document.body to avoid parent clipping/scrolling
+    if (videoStage.parentElement !== document.body) {
+      document.body.appendChild(videoStage);
+    }
     videoStage.style.display = 'flex';
     videoStage.style.position = 'fixed';
     videoStage.style.top = '0';
     videoStage.style.left = '0';
     videoStage.style.width = '100vw';
     videoStage.style.height = '100vh';
-    videoStage.style.zIndex = '1000';
+    videoStage.style.zIndex = '10000';
+    // ensure videos fill the container
+    videoStage.querySelectorAll('video').forEach(v => { v.style.width = '100%'; v.style.height = '100%'; v.style.objectFit = 'cover'; v.style.display = 'block'; });
+    // ensure remote/local preview visible in call mode
+    const remoteVideoEl = document.getElementById('remoteVideo');
+    const localPreviewEl = document.getElementById('localPreview');
+    if(remoteVideoEl) remoteVideoEl.style.display = 'block';
+    if(localPreviewEl && localStream) localPreviewEl.style.display = 'block';
+    // ensure top of viewport and focus
+    try{ window.scrollTo(0,0); videoStage.scrollIntoView({behavior:'auto', block:'start'}); videoStage.focus && videoStage.focus(); }catch(e){}
   }
 }
 
@@ -430,9 +450,21 @@ function exitCallMode() {
   if (app) app.style.padding = '';
   // Restore scrolling
   document.body.style.overflow = 'auto';
-  // Reset videoStage
-  const videoStage = document.getElementById('videoStage');
+  // Show system nav again
+  const sysBar = document.querySelector('.sysBar');
+  if (sysBar) sysBar.style.display = 'flex';
+  const navBackBtnEl = document.getElementById('navBack');
+  const navHomeBtnEl = document.getElementById('navHome');
+  if (navBackBtnEl) navBackBtnEl.style.display = '';
+  if (navHomeBtnEl) navHomeBtnEl.style.display = '';
+  // Reset video stage
+  const videoStage = document.getElementById('stage') || document.querySelector('.videoStage');
   if (videoStage) {
+    // move back into the panel container if possible
+    const panel = document.querySelector('.panel');
+    if (panel && videoStage.parentElement !== panel) {
+      panel.appendChild(videoStage);
+    }
     videoStage.style.display = 'none';
     videoStage.style.position = '';
     videoStage.style.top = '';
@@ -440,6 +472,8 @@ function exitCallMode() {
     videoStage.style.width = '';
     videoStage.style.height = '';
     videoStage.style.zIndex = '';
+    // reset video sizing
+    videoStage.querySelectorAll('video').forEach(v => { v.style.width = ''; v.style.height = ''; v.style.objectFit = ''; });
   }
 }
 let navStack = [];
