@@ -379,6 +379,8 @@
             <!-- in-call overlay controls (mute / hangup) -->
             <div class="stageControls" id="stageControls" style="display:none">
               <button id="inCallMute" class="stageBtn mute" title="Mute">🎤</button>
+              <!-- Speaker toggle: switches audio output to loudspeaker when supported -->
+              <button id="inCallSpeaker" class="stageBtn" title="Speaker" aria-pressed="false">🔈</button>
               <button id="inCallHangup" class="stageBtn hangup" title="Hang up">📞</button>
             </div>
         </div>
@@ -953,6 +955,68 @@ function toggleMute(){
 }
 
 if(inCallMuteBtn) inCallMuteBtn.onclick = ()=> toggleMute();
+
+// Speaker toggle functionality
+const inCallSpeakerBtn = document.getElementById('inCallSpeaker');
+let speakerOn = false;
+
+async function trySetSinkForElement(el, deviceId){
+  if(!el) return false;
+  if(typeof el.setSinkId === 'function'){
+    try{
+      await el.setSinkId(deviceId);
+      return true;
+    }catch(e){
+      console.warn('setSinkId failed', e);
+      return false;
+    }
+  }
+  return false;
+}
+
+async function toggleSpeaker(){
+  speakerOn = !speakerOn;
+  if(inCallSpeakerBtn){ inCallSpeakerBtn.textContent = speakerOn ? '🔊' : '🔈'; inCallSpeakerBtn.setAttribute('aria-pressed', String(speakerOn)); inCallSpeakerBtn.title = speakerOn ? 'Speaker on' : 'Speaker off'; }
+
+  // Preferred: use setSinkId where available (desktop/mobile browsers that support audio output selection)
+  const audioEl = (typeof remoteVideo !== 'undefined' && remoteVideo) ? remoteVideo : document.getElementById('ringAudio');
+  try{
+    if(audioEl && typeof navigator.mediaDevices !== 'undefined' && typeof navigator.mediaDevices.enumerateDevices === 'function' && typeof audioEl.setSinkId === 'function'){
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const outputs = devices.filter(d => d.kind === 'audiooutput');
+      if(outputs && outputs.length){
+        // prefer a device with 'speaker' in its label if available
+        const speakerDevice = outputs.find(d => /speaker|loudspeaker|phone/i.test(d.label)) || outputs[0];
+        if(speakerOn){
+          await trySetSinkForElement(audioEl, speakerDevice.deviceId);
+          return;
+        } else {
+          // attempt to restore to default output
+          await trySetSinkForElement(audioEl, 'default');
+          return;
+        }
+      }
+    }
+  }catch(e){ console.warn('setSinkId attempt failed', e); }
+
+  // Cordova (Android) native plugin attempt: many projects expose a `cordova.plugins.speakerphone` or similar
+  try{
+    if(window.cordova && window.cordova.plugins && window.cordova.plugins.speakerphone && typeof window.cordova.plugins.speakerphone.setSpeakerphoneOn === 'function'){
+      window.cordova.plugins.speakerphone.setSpeakerphoneOn(speakerOn);
+      return;
+    }
+    // Some plugins expose a different namespace; try a couple of common ones gracefully
+    if(window.cordova && window.CDV && typeof window.CDV === 'object' && typeof window.CDV.execNative === 'function'){
+      // unknown host - skip
+    }
+  }catch(e){ console.warn('Cordova speakerphone plugin call failed', e); }
+
+  // If we reached here, we couldn't toggle via web API or plugin
+  // Provide guidance to the user — we don't install plugins automatically here
+  try{ alert('Speaker toggle not supported on this platform/browser. On Android (Cordova) install a speakerphone plugin (for example a plugin that exposes cordova.plugins.speakerphone.setSpeakerphoneOn(true|false)) or use a modern browser that supports audio output device selection.'); }catch(e){}
+}
+
+if(inCallSpeakerBtn) inCallSpeakerBtn.onclick = ()=> toggleSpeaker();
 if(inCallHangupBtn) inCallHangupBtn.onclick = async ()=>{
   // reuse existing end call logic
   try{ if(currentSessionRef) await update(currentSessionRef, { status: 'ended', endedAt: Date.now() }); }catch(e){ console.error(e); }
