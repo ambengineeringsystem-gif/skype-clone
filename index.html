@@ -72,7 +72,7 @@
       .app{padding:10px 12px}
       .grid{grid-template-columns:1fr;}
       .panel{padding:12px}
-      .videoStage{height:56vh}
+      .videoStage{height:70vh}
       .localPreview{width:108px;height:80px;right:10px;bottom:10px}
       .callBtn{width:64px;height:64px}
       .userRow{padding:12px}
@@ -84,7 +84,7 @@
       header{flex-direction:column;align-items:flex-start;gap:6px}
       .subtitle{font-size:0.82rem}
       .usersList{max-height:28vh}
-      .videoStage{height:48vh}
+      .videoStage{height:85vh}
       .callBtn{width:72px;height:72px}
       .controls{justify-content:space-between}
       .statusPill{flex:1;text-align:center}
@@ -982,6 +982,7 @@ async function initiateCallByNumber(number, isVideo){
 function makePeerConnection(){
   pc = new RTCPeerConnection(pcConfig);
   pc.ontrack = (ev)=>{
+    console.log('Received tracks', ev.streams[0]);
     if(ev.streams && ev.streams[0]) remoteVideo.srcObject = ev.streams[0];
     else {
       const ms = new MediaStream(); ev.track && ms.addTrack(ev.track); remoteVideo.srcObject = ms;
@@ -990,15 +991,8 @@ function makePeerConnection(){
     setIdle(false);
     // show local preview now that call is connected
     try{ localPreview.style.display = 'block'; }catch(e){}
-    // attempt to enter fullscreen for immersive call view
-    try{
-      const stage = document.getElementById('stage');
-      if(stage && !document.fullscreenElement){
-        stage.requestFullscreen && stage.requestFullscreen().catch(()=>{});
-        // add class to stage for fullscreen styling (also used when not actually in fullscreen)
-        stage.classList && stage.classList.add('fullscreen');
-      }
-    }catch(e){ console.warn('request fullscreen failed', e); }
+    // try to play the video
+    remoteVideo.play().catch(e => console.log('Play failed', e));
   };
   pc.oniceconnectionstatechange = ()=>{
     console.log('ICE', pc.iceConnectionState);
