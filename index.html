@@ -806,6 +806,10 @@ function startRinging() {
     ringAudio.currentTime = 0;
     ringAudio.play().catch(e => console.warn('Could not play ringtone', e));
   }
+  // Also send to SW for background
+  if (swRegistration && swRegistration.active) {
+    swRegistration.active.postMessage('startRing');
+  }
 }
 
 function stopRinging() {
@@ -813,6 +817,10 @@ function stopRinging() {
   if (ringAudio) {
     ringAudio.pause();
     ringAudio.currentTime = 0;
+  }
+  // Send to SW
+  if (swRegistration && swRegistration.active) {
+    swRegistration.active.postMessage('stopRing');
   }
 }
 
@@ -823,12 +831,33 @@ function showIncomingCall(key, session){
   modalTitle.textContent = `${session.media === 'video' ? 'Video' : 'Audio'} call`;
   modalFrom.textContent = `From: ${session.from || 'Unknown'}`;
   if ('Notification' in window && Notification.permission === 'granted') {
-    showNotification('Incoming ' + session.media + ' call from ' + session.from);
+    showNotification('Incoming ' + session.media + ' call from ' + session.from, {
+      actions: [
+        { action: 'answer', title: 'Answer' },
+        { action: 'reject', title: 'Reject' }
+      ],
+      data: { callKey: key }
+    });
   }
   if (navigator.vibrate) {
     navigator.vibrate(200);
   }
   startRinging();
+  // Check URL params for auto action
+  const urlParams = new URLSearchParams(window.location.search);
+  const action = urlParams.get('action');
+  const callKeyParam = urlParams.get('callKey');
+  if (action && callKeyParam === key) {
+    if (action === 'answer') {
+      // Auto answer
+      acceptIncoming(session.media === 'video');
+    } else if (action === 'reject') {
+      // Auto reject
+      rejectBtn.click();
+    }
+    // Clean URL
+    window.history.replaceState(null, null, window.location.pathname);
+  }
   // Show only the relevant accept button based on call type
   if (session.media === 'video') {
     acceptVideoBtn.style.display = 'inline-block';
